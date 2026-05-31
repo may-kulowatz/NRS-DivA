@@ -82,7 +82,15 @@ def save_predictions_mind_topk(results, behaviors_file, ground_truth_file, outpu
         zf.write(output_file, arcname="prediction.txt")
 
 
-def save_user_article_map(topk_file, output_file):
+def save_user_article_map(topk_file, news_file, output_file):
+    topics = {}
+    subtopics = {}
+    with open(news_file, encoding="utf-8") as f:
+        for line in f:
+            cols = line.strip().split("\t")
+            topics[cols[0]] = cols[1]
+            subtopics[cols[0]] = cols[2] if cols[2] else "none"
+
     user_articles = defaultdict(list)
     with open(topk_file, encoding="utf-8") as f:
         for line in f:
@@ -94,7 +102,9 @@ def save_user_article_map(topk_file, output_file):
 
     with open(output_file, "w") as f:
         for user_id, articles in user_articles.items():
-            f.write(f"{user_id} [" + ",".join(articles) + "]\n")
+            article_topics = [topics.get(a, "unknown") for a in articles]
+            article_subtopics = [subtopics.get(a, "none") for a in articles]
+            f.write(f"{user_id} [" + ",".join(articles) + "] [" + ",".join(article_topics) + "] [" + ",".join(article_subtopics) + "]\n")
 
 
 if __name__ == "__main__":
@@ -104,10 +114,11 @@ if __name__ == "__main__":
     ground_truth_file = os.path.join(mind_dir, "prediction_ground_truth.txt")
     output_file = os.path.join(mind_dir, "prediction_popular.txt")
     output_file_topk = os.path.join(mind_dir, "prediction_popular_topk.txt")
+    news_file = os.path.join(mind_dir, "MINDsmall_dev", "news.tsv")
     output_file_user_map = os.path.join(mind_dir, "user_articles_popular.txt")
 
     rows = load_impressions_mind(behaviors_file)
     results = popular_recommend(rows)
     save_predictions_mind(results, output_file)
     save_predictions_mind_topk(results, behaviors_file, ground_truth_file, output_file_topk)
-    save_user_article_map(output_file_topk, output_file_user_map)
+    save_user_article_map(output_file_topk, news_file, output_file_user_map)
