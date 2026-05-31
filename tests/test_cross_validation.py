@@ -41,7 +41,7 @@ BEHAVIORS = [
     "1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1",
     "2\tU2\t11/15/2019 11:00:00\t\tN4-1 N5-0",
     "3\tU1\t11/15/2019 12:00:00\t\tN4-0 N6-1",
-    "4\tU3\t11/15/2019 13:00:00\t\tN7-1 N8-1 N9-0",
+    "4\tU3\t11/15/2019 13:00:00\t\tN7-1 N8-1 N9-1",
 ]
 
 NEWS = [
@@ -53,7 +53,7 @@ NEWS = [
     "N6\tfinance\tstocks",
     "N7\tsports\tfootball",
     "N8\tnews\tworld",
-    "N9\tlifestyle\t",  # intentionally empty subcategory
+    "N9\tlifestyle\t\tN/A",  # empty subcategory; 4th column prevents strip() eating the empty 3rd
 ]
 
 # ---------------------------------------------------------------------------
