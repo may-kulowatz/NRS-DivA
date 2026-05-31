@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import zipfile
+from collections import defaultdict
 from tqdm import tqdm
 
 
@@ -57,6 +58,21 @@ def save_predictions_mind_topk(results, behaviors_file, ground_truth_file, outpu
         zf.write(output_file, arcname="prediction.txt")
 
 
+def save_user_article_map(topk_file, output_file):
+    user_articles = defaultdict(list)
+    with open(topk_file, encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split()
+            user_id = parts[1]
+            inner_ids = parts[3][1:-1]
+            if inner_ids:
+                user_articles[user_id].extend(inner_ids.split(","))
+
+    with open(output_file, "w") as f:
+        for user_id, articles in user_articles.items():
+            f.write(f"{user_id} [" + ",".join(articles) + "]\n")
+
+
 if __name__ == "__main__":
      _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
      mind_dir = os.path.join(_project_dir, "data", "MIND")
@@ -64,8 +80,10 @@ if __name__ == "__main__":
      ground_truth_file = os.path.join(mind_dir, "prediction_ground_truth.txt")
      output_file = os.path.join(mind_dir, "prediction_random.txt")
      output_file_topk = os.path.join(mind_dir, "prediction_random_topk.txt")
+     output_file_user_map = os.path.join(mind_dir, "user_articles_random.txt")
 
      impressions = load_impressions_mind(behaviors_file)
      results = random_recommend(impressions, seed=42)
      save_predictions_mind(results, output_file)
      save_predictions_mind_topk(results, behaviors_file, ground_truth_file, output_file_topk)
+     save_user_article_map(output_file_topk, output_file_user_map)
