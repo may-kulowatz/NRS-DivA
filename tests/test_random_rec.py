@@ -45,8 +45,11 @@ def test_output_shape(tmp_path):
     assert len(results) == 2
     assert len(results[0][2]) == 3
     assert len(results[1][2]) == 2
-    logger.info("Output contains %d impressions with %d and %d scores respectively",
-                len(results), len(results[0][2]), len(results[1][2]))
+    logger.info(
+        "Number of impressions and scores per impression match the input behaviors file — "
+        "expected 2 impressions with [3, 2] scores, actual %d impressions with [%d, %d] scores",
+        len(results), len(results[0][2]), len(results[1][2])
+    )
 
 
 def test_user_ids_preserved(tmp_path):
@@ -58,7 +61,11 @@ def test_user_ids_preserved(tmp_path):
 
     assert results[0][1] == "U1"
     assert results[1][1] == "U2"
-    logger.info("User IDs correctly passed through: %s, %s", results[0][1], results[1][1])
+    logger.info(
+        "User IDs are passed through from the behaviors file to the recommend output without modification — "
+        "expected [U1, U2], actual [%s, %s]",
+        results[0][1], results[1][1]
+    )
 
 
 def test_scores_in_range(tmp_path):
@@ -70,7 +77,12 @@ def test_scores_in_range(tmp_path):
 
     for _, _, scores in results:
         assert np.all(scores >= 0) and np.all(scores <= 1)
-    logger.info("All scores are within [0, 1] across %d impressions", len(results))
+    all_scores = np.concatenate([s for _, _, s in results])
+    logger.info(
+        "Random scores are bounded within a valid probability range — "
+        "expected all scores in [0.0, 1.0], actual min=%.4f, max=%.4f",
+        all_scores.min(), all_scores.max()
+    )
 
 
 def test_same_seed_reproducible(tmp_path):
@@ -81,7 +93,11 @@ def test_same_seed_reproducible(tmp_path):
     scores_b = random_recommend(impressions, seed=42)[0][2]
 
     np.testing.assert_array_equal(scores_a, scores_b)
-    logger.info("Scores with seed=42 are identical across two runs: %s", scores_a)
+    logger.info(
+        "Using the same random seed produces identical scores across multiple runs — "
+        "expected identical arrays, actual run1=%s, run2=%s",
+        scores_a, scores_b
+    )
 
 
 def test_different_seeds_differ(tmp_path):
@@ -92,7 +108,11 @@ def test_different_seeds_differ(tmp_path):
     scores_b = random_recommend(impressions, seed=2)[0][2]
 
     assert not np.array_equal(scores_a, scores_b)
-    logger.info("Scores differ between seed=1 %s and seed=2 %s", scores_a, scores_b)
+    logger.info(
+        "Different random seeds produce different score arrays — "
+        "expected differing scores, actual seed=1: %s, seed=2: %s",
+        scores_a, scores_b
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +132,11 @@ def test_topk_list_length_matches_ground_truth(tmp_path):
     _, _, positions, ids = parse_topk_line(open(output).readline())
     assert len(positions) == 2
     assert len(ids) == 2
-    logger.info("Top-k output has %d positions and %d article IDs, matching ground truth K=2",
-                len(positions), len(ids))
+    logger.info(
+        "Top-k output contains exactly as many recommendations as there are clicks in the ground truth — "
+        "expected 2 positions and 2 IDs, actual %d positions and %d IDs",
+        len(positions), len(ids)
+    )
 
 
 def test_topk_article_ids_are_valid_candidates(tmp_path):
@@ -128,7 +151,11 @@ def test_topk_article_ids_are_valid_candidates(tmp_path):
 
     _, _, _, ids = parse_topk_line(open(output).readline())
     assert all(aid in {"N1", "N2", "N3", "N4", "N5"} for aid in ids)
-    logger.info("Recommended article IDs %s are all valid candidates", ids)
+    logger.info(
+        "Article IDs in top-k output are drawn only from the impression's candidate pool — "
+        "expected candidates from {N1, N2, N3, N4, N5}, actual %s",
+        ids
+    )
 
 
 def test_topk_positions_within_valid_range(tmp_path):
@@ -143,7 +170,11 @@ def test_topk_positions_within_valid_range(tmp_path):
 
     _, _, positions, _ = parse_topk_line(open(output).readline())
     assert all(1 <= int(p) <= 5 for p in positions)
-    logger.info("All positions %s are within valid range [1, 5]", positions)
+    logger.info(
+        "Candidate positions in top-k output are valid 1-indexed positions within the impression — "
+        "expected all in range [1, 5], actual %s",
+        positions
+    )
 
 
 def test_topk_zero_clicks_gives_empty_lists(tmp_path):
@@ -159,4 +190,8 @@ def test_topk_zero_clicks_gives_empty_lists(tmp_path):
     _, _, positions, ids = parse_topk_line(open(output).readline())
     assert positions == []
     assert ids == []
-    logger.info("Impression with 0 clicks produces empty position and ID lists")
+    logger.info(
+        "Impression with no clicks in ground truth produces empty recommendation lists — "
+        "expected positions=[], IDs=[], actual positions=%s, IDs=%s",
+        positions, ids
+    )

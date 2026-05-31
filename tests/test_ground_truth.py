@@ -33,7 +33,11 @@ def test_load_returns_correct_labels(tmp_path):
     results = load_ground_truth_mind(f)
 
     assert results[0][2] == [1, 0, 1]
-    logger.info("Loaded labels correctly: %s", results[0][2])
+    logger.info(
+        "Loader correctly parses click labels (1=clicked, 0=not clicked) from the candidates column — "
+        "expected [1, 0, 1], actual %s",
+        results[0][2]
+    )
 
 
 def test_load_returns_correct_article_ids(tmp_path):
@@ -41,7 +45,11 @@ def test_load_returns_correct_article_ids(tmp_path):
     results = load_ground_truth_mind(f)
 
     assert results[0][3] == ["N1", "N2", "N3"]
-    logger.info("Loaded article IDs correctly: %s", results[0][3])
+    logger.info(
+        "Loader correctly parses article IDs from the candidates column — "
+        "expected ['N1', 'N2', 'N3'], actual %s",
+        results[0][3]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -54,9 +62,13 @@ def test_only_clicked_articles_in_output(tmp_path):
 
     save_ground_truth_mind(load_ground_truth_mind(f), output)
 
-    _, _, positions, ids = parse_output_line(open(output).readline())
+    _, _, _, ids = parse_output_line(open(output).readline())
     assert ids == ["N1", "N3"]
-    logger.info("Only clicked articles appear in output: %s (N2 correctly excluded)", ids)
+    logger.info(
+        "Only articles with label=1 appear in the output, unclicked articles are excluded — "
+        "expected ['N1', 'N3'], actual %s",
+        ids
+    )
 
 
 def test_correct_positions_of_clicked_articles(tmp_path):
@@ -67,7 +79,11 @@ def test_correct_positions_of_clicked_articles(tmp_path):
 
     _, _, positions, _ = parse_output_line(open(output).readline())
     assert positions == [2, 4]
-    logger.info("Clicked article positions are correct: %s (N2 at 2, N4 at 4)", positions)
+    logger.info(
+        "Positions reflect the 1-indexed locations of clicked articles within the impression — "
+        "expected [2, 4], actual %s",
+        positions
+    )
 
 
 def test_position_and_id_lists_same_length(tmp_path):
@@ -82,8 +98,11 @@ def test_position_and_id_lists_same_length(tmp_path):
     for line in open(output):
         _, _, positions, ids = parse_output_line(line)
         assert len(positions) == len(ids)
-        logger.info("Impression has %d positions and %d IDs — lists are the same length",
-                    len(positions), len(ids))
+        logger.info(
+            "Position list and article ID list always have equal length for each impression — "
+            "expected equal lengths, actual positions=%d, IDs=%d",
+            len(positions), len(ids)
+        )
 
 
 def test_no_clicks_gives_empty_lists(tmp_path):
@@ -95,7 +114,11 @@ def test_no_clicks_gives_empty_lists(tmp_path):
     _, _, positions, ids = parse_output_line(open(output).readline())
     assert positions == []
     assert ids == []
-    logger.info("Impression with no clicks produces empty lists for both positions and IDs")
+    logger.info(
+        "Impression with no clicked articles produces empty lists for both positions and article IDs — "
+        "expected positions=[], IDs=[], actual positions=%s, IDs=%s",
+        positions, ids
+    )
 
 
 def test_user_id_written_to_output(tmp_path):
@@ -106,4 +129,8 @@ def test_user_id_written_to_output(tmp_path):
 
     _, user_id, _, _ = parse_output_line(open(output).readline())
     assert user_id == "U42"
-    logger.info("User ID correctly written to output: %s", user_id)
+    logger.info(
+        "User ID from behaviors file is correctly written to the ground truth output — "
+        "expected 'U42', actual '%s'",
+        user_id
+    )

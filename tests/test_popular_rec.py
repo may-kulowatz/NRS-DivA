@@ -43,7 +43,11 @@ def test_first_impression_all_zero(tmp_path):
     results = {impr_id: scores for impr_id, _, scores in popular_recommend(load_impressions_mind(f))}
 
     np.testing.assert_array_equal(results[1], [0.0, 0.0])
-    logger.info("Earliest impression scores are all zero (no prior clicks): %s", results[1])
+    logger.info(
+        "The chronologically first impression receives zero scores since no clicks have been observed yet — "
+        "expected [0.0, 0.0], actual %s",
+        list(results[1])
+    )
 
 
 def test_clicked_article_scores_higher(tmp_path):
@@ -54,8 +58,11 @@ def test_clicked_article_scores_higher(tmp_path):
     results = {impr_id: scores for impr_id, _, scores in popular_recommend(load_impressions_mind(f))}
 
     assert results[2][0] > results[2][1]
-    logger.info("N1 score %.1f > N2 score %.1f after N1 was clicked in impression 1",
-                results[2][0], results[2][1])
+    logger.info(
+        "An article clicked in a prior impression scores higher than an unclicked article — "
+        "expected N1 > N2, actual N1=%.1f, N2=%.1f",
+        results[2][0], results[2][1]
+    )
 
 
 def test_no_future_click_leak(tmp_path):
@@ -66,8 +73,11 @@ def test_no_future_click_leak(tmp_path):
     results = {impr_id: scores for impr_id, _, scores in popular_recommend(load_impressions_mind(f))}
 
     assert results[1][0] == 0.0
-    logger.info("N1 score in impression 1 is %.1f — click from later impression 2 did not leak",
-                results[1][0])
+    logger.info(
+        "Clicks from later impressions do not influence scores of earlier impressions — "
+        "expected N1 score=0.0 in impression 1, actual %.1f",
+        results[1][0]
+    )
 
 
 def test_counts_accumulate(tmp_path):
@@ -79,8 +89,11 @@ def test_counts_accumulate(tmp_path):
     results = {impr_id: scores for impr_id, _, scores in popular_recommend(load_impressions_mind(f))}
 
     assert results[3][0] == 2.0
-    logger.info("N1 accumulated %.0f clicks by impression 3 (clicked in impressions 1 and 2)",
-                results[3][0])
+    logger.info(
+        "Click counts accumulate correctly across multiple prior impressions — "
+        "expected N1 score=2.0 in impression 3 (clicked in impressions 1 and 2), actual %.1f",
+        results[3][0]
+    )
 
 
 def test_preserves_input_order(tmp_path):
@@ -92,8 +105,11 @@ def test_preserves_input_order(tmp_path):
 
     assert results[0][0] == 2
     assert results[1][0] == 1
-    logger.info("Output order matches file order: impression %d first, impression %d second",
-                results[0][0], results[1][0])
+    logger.info(
+        "Results are returned in the original file order, not sorted by timestamp — "
+        "expected [2, 1], actual [%d, %d]",
+        results[0][0], results[1][0]
+    )
 
 
 def test_user_ids_preserved(tmp_path):
@@ -105,7 +121,11 @@ def test_user_ids_preserved(tmp_path):
 
     assert results[0][1] == "U1"
     assert results[1][1] == "U2"
-    logger.info("User IDs correctly passed through: %s, %s", results[0][1], results[1][1])
+    logger.info(
+        "User IDs are passed through from loader to recommender output without modification — "
+        "expected [U1, U2], actual [%s, %s]",
+        results[0][1], results[1][1]
+    )
 
 
 def test_multiple_articles_clicked_ranked_correctly(tmp_path):
@@ -118,8 +138,11 @@ def test_multiple_articles_clicked_ranked_correctly(tmp_path):
     results = {impr_id: scores for impr_id, _, scores in popular_recommend(load_impressions_mind(f))}
 
     assert results[4][0] > results[4][1]
-    logger.info("N1 score %.0f > N2 score %.0f in impression 4 (N1 clicked 3×, N2 clicked 1×)",
-                results[4][0], results[4][1])
+    logger.info(
+        "Article with more historical clicks scores higher than one with fewer clicks — "
+        "expected N1 (3 clicks) > N2 (1 click), actual N1=%.0f, N2=%.0f",
+        results[4][0], results[4][1]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +167,10 @@ def test_topk_list_length_matches_ground_truth(tmp_path):
         _, _, positions, ids = parse_topk_line(line)
         assert len(positions) == 2
         assert len(ids) == 2
-    logger.info("Both impressions produced top-k lists of length 2, matching ground truth K=2")
+    logger.info(
+        "Top-k output contains exactly as many recommendations as there are clicks in the ground truth — "
+        "expected 2 positions and 2 IDs per impression, actual matches for all impressions"
+    )
 
 
 def test_topk_article_ids_are_valid_candidates(tmp_path):
@@ -159,7 +185,11 @@ def test_topk_article_ids_are_valid_candidates(tmp_path):
 
     _, _, _, ids = parse_topk_line(open(output).readline())
     assert all(aid in {"N1", "N2", "N3"} for aid in ids)
-    logger.info("Recommended article IDs %s are all valid candidates", ids)
+    logger.info(
+        "Article IDs in top-k output are drawn only from the impression's candidate pool — "
+        "expected candidates from {N1, N2, N3}, actual %s",
+        ids
+    )
 
 
 def test_topk_zero_clicks_gives_empty_lists(tmp_path):
@@ -175,4 +205,8 @@ def test_topk_zero_clicks_gives_empty_lists(tmp_path):
     _, _, positions, ids = parse_topk_line(open(output).readline())
     assert positions == []
     assert ids == []
-    logger.info("Impression with 0 clicks produces empty position and ID lists")
+    logger.info(
+        "Impression with no clicks in ground truth produces empty recommendation lists — "
+        "expected positions=[], IDs=[], actual positions=%s, IDs=%s",
+        positions, ids
+    )
