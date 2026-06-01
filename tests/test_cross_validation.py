@@ -53,7 +53,7 @@ NEWS = [
     "N6\tfinance\tstocks",
     "N7\tsports\tfootball",
     "N8\tnews\tworld",
-    "N9\tlifestyle\t\tN/A",  # empty subcategory; 4th column prevents strip() eating the empty 3rd
+    "N9\tlifestyle\t\tN/A",
 ]
 
 # ---------------------------------------------------------------------------
