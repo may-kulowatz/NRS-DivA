@@ -1,5 +1,4 @@
 import os
-import zipfile
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -25,11 +24,6 @@ def save_ground_truth_mind(results, output_file):
             positions = [str(pos) for pos, _ in clicked]
             ids = [aid for _, aid in clicked]
             f.write(f"{impr_id} {user_id} [" + ",".join(positions) + "] [" + ",".join(ids) + "]\n")
-
-    zip_path = output_file.replace(".txt", ".zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(output_file, arcname="prediction.txt")
-
 
 def save_user_article_map(ground_truth_file, news_file, output_file):
     topics = {}

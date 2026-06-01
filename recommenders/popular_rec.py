@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import zipfile
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -76,11 +75,6 @@ def save_predictions_mind_topk(results, behaviors_file, ground_truth_file, outpu
             positions = [i + 1 for i in top_k_idx]
             chosen_ids = [ids[i] for i in top_k_idx]
             f.write(f"{impr_id} {user_id} [" + ",".join(map(str, positions)) + "] [" + ",".join(chosen_ids) + "]\n")
-
-    zip_path = output_file.replace(".txt", ".zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(output_file, arcname="prediction.txt")
-
 
 def save_user_article_map(topk_file, news_file, output_file):
     topics = {}
