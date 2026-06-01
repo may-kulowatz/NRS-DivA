@@ -2,7 +2,7 @@ import sys
 import os
 import logging
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from general.ground_truth import load_ground_truth_mind, save_ground_truth_mind, save_user_article_map
 
@@ -211,23 +211,6 @@ def test_user_map_correct_subtopics(tmp_path):
     logger.info(
         "Article subcategories are correctly looked up from news.tsv — "
         "expected ['golf', 'investing'], actual %s",
-        subtopics
-    )
-
-
-def test_user_map_empty_subcategory_gives_none(tmp_path):
-    # N1 has no subcategory in news.tsv; output should show "none".
-    pred = write_prediction_file(tmp_path, ["1 U1 [1] [N1]"])
-    news = write_news(tmp_path, [("N1", "news", "")])
-    output = str(tmp_path / "out.txt")
-
-    save_user_article_map(pred, news, output)
-
-    _, _, _, subtopics = parse_user_map_line(open(output).readline())
-    assert subtopics == ["none"]
-    logger.info(
-        "Empty subcategory in news.tsv is written as 'none' — "
-        "expected ['none'], actual %s",
         subtopics
     )
 

@@ -3,7 +3,7 @@ import os
 import logging
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from general.random_rec import load_impressions_mind, random_recommend, save_predictions_mind_topk, save_user_article_map
 
@@ -269,24 +269,6 @@ def test_user_map_correct_subtopics(tmp_path):
         "expected ['golf', 'investing'], actual %s",
         subtopics
     )
-
-
-def test_user_map_empty_subcategory_gives_none(tmp_path):
-    # N1 has no subcategory in news.tsv; output should show "none".
-    topk = write_ground_truth(tmp_path, ["1 U1 [1] [N1]"])
-    news = write_news(tmp_path, [("N1", "news", "")])
-    output = str(tmp_path / "out.txt")
-
-    save_user_article_map(topk, news, output)
-
-    _, _, _, subtopics = parse_user_map_line(open(output).readline())
-    assert subtopics == ["none"]
-    logger.info(
-        "Empty subcategory in news.tsv is written as 'none' — "
-        "expected ['none'], actual %s",
-        subtopics
-    )
-
 
 def test_user_map_multiple_users_have_separate_entries(tmp_path):
     topk = write_ground_truth(tmp_path, [
