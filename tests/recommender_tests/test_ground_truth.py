@@ -4,7 +4,7 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from general.ground_truth import load_ground_truth_mind, save_ground_truth_mind, save_user_article_map
+from recommenders.ground_truth import load_ground_truth_mind, save_ground_truth_mind, save_user_article_map
 
 logger = logging.getLogger(__name__)
 

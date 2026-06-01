@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from general.popular_rec import load_impressions_mind, popular_recommend, save_predictions_mind_topk, save_user_article_map
+from recommenders.popular_rec import load_impressions_mind, popular_recommend, save_predictions_mind_topk, save_user_article_map
 
 logger = logging.getLogger(__name__)
 
