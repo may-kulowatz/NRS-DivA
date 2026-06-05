@@ -24,6 +24,7 @@ from recommenders.popular_rec import (
     save_user_article_map as popular_save_map,
 )
 from diversityScores.topic_diversity import topic_diversity, subtopic_diversity
+from diversityScores.content_diversity import content_diversity, load_news_embeddings
 
 
 def _nrms_topk(nrms_file, behaviors_file, ground_truth_file, output_topk):
@@ -177,6 +178,11 @@ def run_pipeline(mind_dir, seed=42):
     # Depends on: user article maps (always runs — no file output)
     # -------------------------------------------------------------------------
     print("Step 6/6 — Calculating diversity scores...")
+    news_embeddings = load_news_embeddings(
+        news_file,
+        os.path.join(mind_dir, "utils", "embedding.npy"),
+        os.path.join(mind_dir, "utils", "word_dict.pkl"),
+    )
     scores = {}
     for name, path in [
         ("random",       user_articles_random),
@@ -187,6 +193,7 @@ def run_pipeline(mind_dir, seed=42):
         scores[name] = {
             "topic_diversity":           topic_diversity(path),
             "subtopic_diversity_news":   subtopic_diversity(path, category="news"),
+            "content_diversity":         content_diversity(path, news_embeddings),
         }
 
     print("\n=== Diversity Scores ===")
@@ -194,6 +201,7 @@ def run_pipeline(mind_dir, seed=42):
         print(f"\n  {name}:")
         print(f"    Topic diversity:           {s['topic_diversity']:.4f}")
         print(f"    Subtopic diversity (news): {s['subtopic_diversity_news']:.4f}")
+        print(f"    Content diversity (ILD):   {s['content_diversity']:.4f}")
 
     return scores
 
