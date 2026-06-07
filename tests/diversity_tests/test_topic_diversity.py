@@ -107,6 +107,52 @@ def test_topic_diversity_score_between_zero_and_one(tmp_path):
     )
 
 
+def test_topic_diversity_multiple_topics_per_article(tmp_path):
+    # An article can carry several topics, encoded as a "|"-separated group.
+    # N1 -> {a, b}, N2 -> {b, c}: flattened = [a, b, b, c] -> 3 unique / 4 = 0.75
+    f = write_user_articles(tmp_path, [
+        "U1 [N1,N2] [a|b,b|c] [s1,s2]",
+    ])
+    score = topic_diversity(f)
+
+    assert abs(score - 0.75) < 1e-9
+    logger.info(
+        "Articles with multiple topics flatten all topics before counting — "
+        "expected 0.7500 ([a,b,b,c] -> 3/4), actual %.4f", score
+    )
+
+
+def test_topic_diversity_filters_empty_topics(tmp_path):
+    # N2 has no topics ("none") and must be ignored entirely:
+    # only [a, b] count -> 2 unique / 2 = 1.0 (N2 affects neither count).
+    f = write_user_articles(tmp_path, [
+        "U1 [N1,N2,N3] [a,none,b] [s1,s2,s3]",
+    ])
+    score = topic_diversity(f)
+
+    assert abs(score - 1.0) < 1e-9
+    logger.info(
+        "Articles with no topics ('none') are filtered out of the calculation — "
+        "expected 1.0000 ([a,b] -> 2/2, N2 ignored), actual %.4f", score
+    )
+
+
+def test_topic_diversity_user_with_only_empty_topics_skipped(tmp_path):
+    # U1's articles are all topic-less -> U1 contributes nothing.
+    # U2 has [a, b] -> 1.0; average over eligible users = 1.0.
+    f = write_user_articles(tmp_path, [
+        "U1 [N1,N2] [none,none] [s1,s2]",
+        "U2 [N3,N4] [a,b] [s3,s4]",
+    ])
+    score = topic_diversity(f)
+
+    assert abs(score - 1.0) < 1e-9
+    logger.info(
+        "A user left with no topics after filtering is skipped entirely — "
+        "expected 1.0000 (U1 skipped, U2=1.0), actual %.4f", score
+    )
+
+
 # ---------------------------------------------------------------------------
 # subtopic_diversity
 # ---------------------------------------------------------------------------

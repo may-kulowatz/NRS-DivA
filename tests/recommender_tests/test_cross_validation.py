@@ -13,23 +13,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from recommenders.random_rec import (
-    load_impressions_mind,
-    random_recommend,
-    save_predictions_mind_topk,
-    save_user_article_map as random_save_map,
-)
-from recommenders.popular_rec import (
-    load_impressions_mind as popular_load_impressions,
-    popular_recommend,
-    save_predictions_mind_topk as popular_save_topk,
-    save_user_article_map as popular_save_map,
-)
-from recommenders.ground_truth import (
-    load_ground_truth_mind,
-    save_ground_truth_mind,
-    save_user_article_map as gt_save_map,
-)
+from datasets.mind import load_impressions, load_article_meta
+from recommenders.random_rec import random_recommend
+from recommenders.popular_rec import popular_recommend
+from recommenders.ground_truth import extract_ground_truth, save_ground_truth
+from recommenders.io import save_predictions_topk, save_user_article_map
 
 logger = logging.getLogger(__name__)
 
@@ -76,22 +64,22 @@ def generated_files(tmp_path_factory):
     (tmp / "behaviors.tsv").write_text("\n".join(BEHAVIORS), encoding="utf-8")
     (tmp / "news.tsv").write_text("\n".join(NEWS), encoding="utf-8")
 
+    impressions = load_impressions(behaviors_file)
+    article_meta = load_article_meta(news_file)
+
     # Ground truth
-    gt_results = load_ground_truth_mind(behaviors_file)
-    save_ground_truth_mind(gt_results, gt_file)
-    gt_save_map(gt_file, news_file, gt_map)
+    save_ground_truth(extract_ground_truth(impressions), gt_file)
+    save_user_article_map(gt_file, article_meta, gt_map)
 
     # Random
-    impressions = load_impressions_mind(behaviors_file)
     random_results = random_recommend(impressions, seed=42)
-    save_predictions_mind_topk(random_results, behaviors_file, gt_file, random_topk)
-    random_save_map(random_topk, news_file, random_map)
+    save_predictions_topk(random_results, impressions, random_topk)
+    save_user_article_map(random_topk, article_meta, random_map)
 
     # Popular
-    rows = popular_load_impressions(behaviors_file)
-    popular_results = popular_recommend(rows)
-    popular_save_topk(popular_results, behaviors_file, gt_file, popular_topk)
-    popular_save_map(popular_topk, news_file, popular_map)
+    popular_results = popular_recommend(impressions)
+    save_predictions_topk(popular_results, impressions, popular_topk)
+    save_user_article_map(popular_topk, article_meta, popular_map)
 
     return {
         "random_map":  random_map,

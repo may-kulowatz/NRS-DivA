@@ -1,0 +1,487 @@
+"""EchoBench — Solara dashboard.
+
+A single-page dashboard for exploring the diversity of the baseline
+recommenders across datasets. The user picks a Dataset, a Recommender System and
+a Diversity Score; the Diversity Score section then shows the real score for the
+chosen dataset + recommender. Scores are read from the same
+predictions/diversity_scores.json cache the pipeline writes, and only computed
+(and written back) when the cache has no fresh entry — so the dashboard and the
+pipeline never disagree and expensive metrics aren't recomputed needlessly.
+
+Run with:
+    solara run dashboard.py
+"""
+
+import functools
+import os
+import random
+
+import solara
+from matplotlib.figure import Figure
+
+from pipeline import (
+    DATASETS,
+    _compute_run_scores,
+    _file_sig,
+    _load_score_cache,
+    _save_score_cache,
+)
+from diversityScores.topic_diversity import (
+    topic_diversity,
+    subtopic_diversity,
+    _parse_user_articles,
+)
+from diversityScores.content_diversity import content_diversity, load_news_embeddings
+
+_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+# ---------------------------------------------------------------------------
+# Options + display labels
+# ---------------------------------------------------------------------------
+DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD"}
+
+# Recommenders available per dataset (eb-nerd ships no NRMS predictions).
+RECOMMENDERS = {
+    "MIND": ["random", "popular", "nrms", "ground_truth"],
+    "ebnerd": ["random", "popular", "ground_truth"],
+}
+REC_LABELS = {
+    "random": "Random",
+    "popular": "Popular",
+    "nrms": "NRMS",
+    "ground_truth": "Ground truth",
+}
+
+METRICS = ["topic", "subtopic", "content"]
+METRIC_LABELS = {
+    "topic": "Topic diversity",
+    "subtopic": "Subtopic diversity",
+    "content": "Content diversity (ILD)",
+}
+
+
+# ---------------------------------------------------------------------------
+# Placeholder copy (Lorem ipsum) shown for dataset / recommender choices
+# ---------------------------------------------------------------------------
+_LOREM = (
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod "
+    "tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, "
+    "quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo "
+    "consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse "
+    "cillum dolore eu fugiat nulla pariatur."
+)
+DATASET_TEXT = {ds: _LOREM for ds in DATASETS}
+RECOMMENDER_TEXT = {rec: _LOREM for rec in REC_LABELS}
+
+INTRO_MD = """
+# EchoBench
+
+Welcome to **EchoBench**, a small workbench for comparing how *diverse* the
+recommendations of different baseline recommender systems are, across different
+news datasets.
+
+Use the controls below to pick a **dataset**, a **recommender system** and a
+**diversity score**. The diversity score is computed live from the recommender's
+output for the dataset you selected.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Score computation (reuses the pipeline's configuration + metric functions)
+# ---------------------------------------------------------------------------
+def _user_articles_path(dataset, recommender):
+    return os.path.join(
+        _PROJECT_DIR, "data", dataset, "predictions",
+        f"user_articles_{recommender}.txt",
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def _get_embeddings(dataset):
+    """Load (and cache) the news embeddings a dataset's content diversity needs."""
+    cfg = DATASETS[dataset]
+    data_dir = os.path.join(_PROJECT_DIR, "data", dataset)
+    cd = cfg["content_diversity"]
+    return load_news_embeddings(
+        os.path.join(data_dir, *cfg["articles"]),
+        os.path.join(data_dir, *cd["embedding"]),
+        os.path.join(data_dir, *cd["word_dict"]),
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def _get_titles(dataset):
+    """Load (and cache) {article_id: title} via the dataset's adapter."""
+    cfg = DATASETS[dataset]
+    articles_file = os.path.join(_PROJECT_DIR, "data", dataset, *cfg["articles"])
+    return cfg["adapter"].load_titles(articles_file)
+
+
+@functools.lru_cache(maxsize=None)
+def _parse_user_articles_cached(path, sig):
+    """Parse a user_articles file into {user: (ids, topics, subtopics)}.
+
+    Cached on the file's change-signature so repeated dashboard renders don't
+    re-read the (potentially large) file; a changed file invalidates the entry.
+    """
+    return _parse_user_articles(path)
+
+
+# Dashboard metric name -> the key used in predictions/diversity_scores.json.
+_CACHE_KEY = {
+    "topic": "topic_diversity",
+    "subtopic": "subtopic_diversity",
+    "content": "content_diversity",
+}
+
+
+def _metric_fn(dataset, metric):
+    """Return the metric function fn(path) -> float for the chosen metric."""
+    cfg = DATASETS[dataset]
+    if metric == "topic":
+        return topic_diversity
+    if metric == "subtopic":
+        category = cfg["subtopic_category"]
+        return lambda p: subtopic_diversity(p, category=category)
+    if metric == "content":
+        return lambda p: content_diversity(p, _get_embeddings(dataset))
+    raise ValueError(f"Unknown metric '{metric}'")
+
+
+def compute_score(dataset, recommender, metric):
+    """Return (value, message).
+
+    The score is read from the shared predictions/diversity_scores.json cache
+    written by the pipeline. It is only recomputed if the cache has no entry for
+    this (recommender, metric) or the cached entry is stale (the recommender's
+    user-article file changed since it was cached); a freshly computed score is
+    written back so both the dashboard and the pipeline stay in sync.
+
+    value is the float diversity score, or None when it can't be computed — in
+    which case message explains why (and is shown to the user).
+    """
+    cfg = DATASETS[dataset]
+    path = _user_articles_path(dataset, recommender)
+    if not os.path.exists(path):
+        return None, (
+            f"No output for '{REC_LABELS[recommender]}' on {DATASET_LABELS[dataset]} yet. "
+            f"Generate it with:  python pipeline.py {dataset}"
+        )
+    if metric == "subtopic" and cfg["subtopic_category"] is None:
+        return None, (
+            f"Subtopic diversity isn't defined for {DATASET_LABELS[dataset]} — "
+            "its subcategories don't map to a parent category."
+        )
+    if metric == "content" and cfg["content_diversity"] is None:
+        return None, (
+            f"Content diversity isn't available for {DATASET_LABELS[dataset]} — "
+            "no article embeddings are shipped for this dataset."
+        )
+
+    # Reuse the pipeline's cache logic: it returns the cached value when the
+    # input file's signature still matches, and only calls the metric function
+    # on a miss.
+    key = _CACHE_KEY[metric]
+    cache_file = os.path.join(
+        _PROJECT_DIR, "data", dataset, "predictions", "diversity_scores.json"
+    )
+    cache = _load_score_cache(cache_file)
+    prev_run = cache.get(recommender, {})
+
+    scores, run_cache, n_computed = _compute_run_scores(
+        path, [(key, _metric_fn(dataset, metric))], prev_run
+    )
+
+    if n_computed:
+        # Persist the freshly computed score without dropping other cached
+        # metrics already stored for this recommender.
+        cache[recommender] = {**prev_run, **run_cache}
+        _save_score_cache(cache_file, cache)
+
+    return scores[key], None
+
+
+# ---------------------------------------------------------------------------
+# Reactive state
+# ---------------------------------------------------------------------------
+dataset = solara.reactive("MIND")
+recommender = solara.reactive("random")
+metric = solara.reactive("topic")
+
+
+def select_dataset(value):
+    dataset.set(value)
+    # Keep the recommender valid for the new dataset (e.g. NRMS only on MIND).
+    if recommender.value not in RECOMMENDERS[value]:
+        recommender.set(RECOMMENDERS[value][0])
+
+
+# ---------------------------------------------------------------------------
+# Reusable UI pieces
+# ---------------------------------------------------------------------------
+@solara.component
+def PillGroup(options, selected, labels, on_select):
+    """A row of pill-shaped, single-select buttons."""
+    with solara.Row(style={"flex-wrap": "wrap", "gap": "8px", "margin-bottom": "8px"}):
+        for opt in options:
+            is_selected = selected == opt
+            solara.Button(
+                labels.get(opt, opt),
+                on_click=lambda opt=opt: on_select(opt),
+                color="primary" if is_selected else None,
+                outlined=not is_selected,
+                classes=["rounded-pill", "text-none"],
+            )
+
+
+# ---------------------------------------------------------------------------
+# Page
+# ---------------------------------------------------------------------------
+@solara.component
+def Page():
+    solara.Title("EchoBench — Diversity Dashboard")
+
+    with solara.Column(style={"max-width": "860px", "margin": "0 auto", "padding": "24px"}):
+        solara.Markdown(INTRO_MD)
+
+        # Each section is a foldable panel (open by default, click the header to
+        # collapse). The current selection is shown in the header so it stays
+        # visible even when the panel is collapsed.
+        with solara.Details(f"Dataset  ·  {DATASET_LABELS[dataset.value]}", expand=True):
+            with solara.Column():
+                PillGroup(list(DATASETS.keys()), dataset.value, DATASET_LABELS, select_dataset)
+                solara.Markdown(DATASET_TEXT[dataset.value])
+
+        with solara.Details(
+            f"Recommender System  ·  {REC_LABELS[recommender.value]}", expand=True
+        ):
+            with solara.Column():
+                PillGroup(
+                    RECOMMENDERS[dataset.value], recommender.value, REC_LABELS, recommender.set
+                )
+                solara.Markdown(RECOMMENDER_TEXT[recommender.value])
+
+        with solara.Details(
+            f"Diversity Score  ·  {METRIC_LABELS[metric.value]}", expand=True
+        ):
+            with solara.Column():
+                PillGroup(METRICS, metric.value, METRIC_LABELS, metric.set)
+                value, message = compute_score(dataset.value, recommender.value, metric.value)
+                ScoreCard(value, message)
+
+        with solara.Details("Visualization and Examples", expand=True):
+            with solara.Column():
+                solara.Markdown(
+                    f"How the recommenders compare on **{METRIC_LABELS[metric.value]}** for "
+                    f"**{DATASET_LABELS[dataset.value]}**. Your selected recommender "
+                    f"(**{REC_LABELS[recommender.value]}**) is highlighted."
+                )
+                ComparisonChart(dataset.value, recommender.value, metric.value)
+
+                solara.Markdown(
+                    "### Example — a random user\n"
+                    "The articles this user actually clicked, next to what "
+                    f"**{REC_LABELS[recommender.value]}** would have recommended them."
+                )
+                ExamplesPanel(dataset.value, recommender.value)
+
+
+@solara.component
+def ScoreCard(value, message):
+    caption = (
+        f"{METRIC_LABELS[metric.value]} — {DATASET_LABELS[dataset.value]} / "
+        f"{REC_LABELS[recommender.value]}"
+    )
+    with solara.Card(style={"margin-top": "8px"}):
+        solara.Markdown(f"**{caption}**")
+        if value is None:
+            solara.Info(message)
+        else:
+            solara.Markdown(
+                f"<div style='font-size:48px;font-weight:700;color:#1976d2'>{value:.4f}</div>",
+            )
+            solara.Markdown(
+                "_Higher means the recommended articles are more diverse "
+                "(range 0–1)._"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Visualization
+# ---------------------------------------------------------------------------
+_CHOSEN_COLOR = "#1976d2"   # highlight for the selected recommender's bar
+_OTHER_COLOR = "#cfd8dc"    # muted grey for the rest
+
+# Solara alert component to use per interpretation severity.
+_ALERT = {"warning": solara.Warning, "info": solara.Info, "success": solara.Success}
+
+
+def scores_for_all_recommenders(dataset, metric):
+    """Return {recommender: value} for every recommender that has this metric.
+
+    Reuses compute_score (and therefore the JSON cache), so this is cheap.
+    """
+    result = {}
+    for rec in RECOMMENDERS[dataset]:
+        value, _ = compute_score(dataset, rec, metric)
+        if value is not None:
+            result[rec] = value
+    return result
+
+
+def interpret_vs_ground_truth(recommender, scores, metric):
+    """Compare the chosen recommender's score against ground truth.
+
+    Returns (message, severity) where severity is a key of _ALERT, or
+    (None, None) when no meaningful comparison can be made.
+    """
+    chosen = scores.get(recommender)
+    if chosen is None:
+        return None, None
+
+    label = METRIC_LABELS[metric]
+    if recommender == "ground_truth":
+        return (
+            f"This is the ground-truth reference — the {label.lower()} of the "
+            "articles users actually clicked.",
+            "info",
+        )
+
+    gt = scores.get("ground_truth")
+    if not gt:  # no ground truth, or ground truth is 0 → ratio undefined
+        return None, None
+
+    ratio = chosen / gt
+    if ratio < 0.75:
+        return (
+            f"{label} much lower than ground truth: might lead into echo chambers!",
+            "warning",
+        )
+    if ratio < 0.95:
+        return (f"{label} somewhat lower than ground truth.", "info")
+    if ratio <= 1.05:
+        return (f"{label} about the same as ground truth.", "success")
+    return (
+        f"{label} higher than ground truth — more diverse than what users "
+        "actually clicked.",
+        "info",
+    )
+
+
+@solara.component
+def ComparisonChart(dataset, recommender, metric):
+    scores = scores_for_all_recommenders(dataset, metric)
+    if not scores:
+        solara.Info(
+            f"{METRIC_LABELS[metric]} isn't available for {DATASET_LABELS[dataset]}, "
+            "so there's nothing to compare here."
+        )
+        return
+
+    # Keep a stable recommender order; drop any without a value for this metric.
+    recs = [r for r in RECOMMENDERS[dataset] if r in scores]
+    values = [scores[r] for r in recs]
+    labels = [REC_LABELS[r] for r in recs]
+    colors = [_CHOSEN_COLOR if r == recommender else _OTHER_COLOR for r in recs]
+
+    # Object-oriented Figure (not pyplot) to avoid global state on the server.
+    fig = Figure(figsize=(6.2, 3.4))
+    ax = fig.subplots()
+    bars = ax.bar(labels, values, color=colors, edgecolor="#90a4ae")
+    ax.set_ylabel(METRIC_LABELS[metric])
+    ax.set_ylim(0, max(values) * 1.18)
+    ax.set_title(f"{METRIC_LABELS[metric]} by recommender — {DATASET_LABELS[dataset]}")
+    for bar, value in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2, value,
+            f"{value:.3f}", ha="center", va="bottom", fontsize=9,
+        )
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+
+    solara.FigureMatplotlib(fig)
+
+    message, severity = interpret_vs_ground_truth(recommender, scores, metric)
+    if message:
+        _ALERT[severity](message)
+
+
+# ---------------------------------------------------------------------------
+# Concrete examples: one random user's clicked vs recommended articles
+# ---------------------------------------------------------------------------
+# Incremented by the "Pick another user" button to draw a fresh random user.
+example_reshuffle = solara.reactive(0)
+
+
+def _fmt_topic(topic):
+    """Make a stored topic field human-readable (undo the '|' / '_' encoding)."""
+    if not topic or topic == "none":
+        return ""
+    return topic.replace("_", " ").replace("|", ", ")
+
+
+def _articles_for_user(dataset, recommender, kind):
+    """Return [(article_id, topic)] for a user, for kind 'clicked' or 'recommended'.
+
+    'clicked' reads the ground-truth user-article map; 'recommended' reads the
+    chosen recommender's map. Returns {} signal via the caller.
+    """
+    rec = "ground_truth" if kind == "clicked" else recommender
+    path = _user_articles_path(dataset, rec)
+    if not os.path.exists(path):
+        return None
+    return _parse_user_articles_cached(path, _file_sig(path))
+
+
+@solara.component
+def ArticleList(title, ids, topics, titles):
+    with solara.Card(title, style={"height": "100%"}):
+        with solara.Column(gap="4px"):
+            for aid, topic in zip(ids, topics):
+                name = titles.get(aid) or f"(article {aid})"
+                if len(name) > 80:
+                    name = name[:80] + "…"
+                tp = _fmt_topic(topic)
+                suffix = f"  ·  _{tp}_" if tp else ""
+                solara.Markdown(f"- {name}{suffix}")
+
+
+@solara.component
+def ExamplesPanel(dataset, recommender):
+    clicked_map = _articles_for_user(dataset, recommender, "clicked")
+    rec_map = _articles_for_user(dataset, recommender, "recommended")
+
+    # Hooks must run unconditionally (no early return before this).
+    users = sorted(set(clicked_map) & set(rec_map)) if clicked_map and rec_map else []
+    counter = example_reshuffle.value
+    user = solara.use_memo(
+        lambda: random.choice(users) if users else None,
+        [dataset, counter, len(users)],
+    )
+
+    if clicked_map is None or rec_map is None:
+        solara.Info(f"Generate outputs first with:  python pipeline.py {dataset}")
+        return
+    if not users or user is None:
+        solara.Info("No users with both clicks and recommendations are available.")
+        return
+
+    titles = _get_titles(dataset)
+    clicked_ids, clicked_topics, _ = clicked_map[user]
+    rec_ids, rec_topics, _ = rec_map[user]
+
+    with solara.Row(style={"align-items": "center", "gap": "12px", "margin-bottom": "8px"}):
+        solara.Markdown(f"**User `{user}`** — {len(clicked_ids)} clicked article(s)")
+        solara.Button(
+            "Pick another user",
+            on_click=lambda: example_reshuffle.set(example_reshuffle.value + 1),
+            outlined=True,
+            classes=["rounded-pill", "text-none"],
+        )
+
+    with solara.Columns([1, 1]):
+        ArticleList("Actually clicked (ground truth)", clicked_ids, clicked_topics, titles)
+        ArticleList(
+            f"Recommended by {REC_LABELS[recommender]}", rec_ids, rec_topics, titles
+        )

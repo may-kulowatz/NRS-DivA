@@ -4,7 +4,9 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from recommenders.ground_truth import load_ground_truth_mind, save_ground_truth_mind, save_user_article_map
+from datasets.mind import load_impressions, load_article_meta
+from recommenders.ground_truth import extract_ground_truth, save_ground_truth
+from recommenders.io import save_user_article_map
 
 logger = logging.getLogger(__name__)
 
@@ -25,42 +27,42 @@ def parse_output_line(line):
 
 
 # ---------------------------------------------------------------------------
-# load_ground_truth_mind
+# load_impressions (MIND adapter)
 # ---------------------------------------------------------------------------
 
 def test_load_returns_correct_labels(tmp_path):
     f = write_behaviors(tmp_path, ["1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1"])
-    results = load_ground_truth_mind(f)
+    impressions = load_impressions(f)
 
-    assert results[0][2] == [1, 0, 1]
+    assert impressions[0].labels == [1, 0, 1]
     logger.info(
-        "Loader correctly parses click labels (1=clicked, 0=not clicked) from the candidates column — "
+        "Adapter correctly parses click labels (1=clicked, 0=not clicked) from the candidates column — "
         "expected [1, 0, 1], actual %s",
-        results[0][2]
+        impressions[0].labels
     )
 
 
 def test_load_returns_correct_article_ids(tmp_path):
     f = write_behaviors(tmp_path, ["1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1"])
-    results = load_ground_truth_mind(f)
+    impressions = load_impressions(f)
 
-    assert results[0][3] == ["N1", "N2", "N3"]
+    assert impressions[0].candidate_ids == ["N1", "N2", "N3"]
     logger.info(
-        "Loader correctly parses article IDs from the candidates column — "
+        "Adapter correctly parses article IDs from the candidates column — "
         "expected ['N1', 'N2', 'N3'], actual %s",
-        results[0][3]
+        impressions[0].candidate_ids
     )
 
 
 # ---------------------------------------------------------------------------
-# save_ground_truth_mind
+# extract_ground_truth + save_ground_truth
 # ---------------------------------------------------------------------------
 
 def test_only_clicked_articles_in_output(tmp_path):
     f = write_behaviors(tmp_path, ["1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1"])
     output = str(tmp_path / "out.txt")
 
-    save_ground_truth_mind(load_ground_truth_mind(f), output)
+    save_ground_truth(extract_ground_truth(load_impressions(f)), output)
 
     _, _, _, ids = parse_output_line(open(output).readline())
     assert ids == ["N1", "N3"]
@@ -75,7 +77,7 @@ def test_correct_positions_of_clicked_articles(tmp_path):
     f = write_behaviors(tmp_path, ["1\tU1\t11/15/2019 10:00:00\t\tN1-0 N2-1 N3-0 N4-1"])
     output = str(tmp_path / "out.txt")
 
-    save_ground_truth_mind(load_ground_truth_mind(f), output)
+    save_ground_truth(extract_ground_truth(load_impressions(f)), output)
 
     _, _, positions, _ = parse_output_line(open(output).readline())
     assert positions == [2, 4]
@@ -93,7 +95,7 @@ def test_position_and_id_lists_same_length(tmp_path):
     ])
     output = str(tmp_path / "out.txt")
 
-    save_ground_truth_mind(load_ground_truth_mind(f), output)
+    save_ground_truth(extract_ground_truth(load_impressions(f)), output)
 
     for line in open(output):
         _, _, positions, ids = parse_output_line(line)
@@ -109,7 +111,7 @@ def test_no_clicks_gives_empty_lists(tmp_path):
     f = write_behaviors(tmp_path, ["1\tU1\t11/15/2019 10:00:00\t\tN1-0 N2-0 N3-0"])
     output = str(tmp_path / "out.txt")
 
-    save_ground_truth_mind(load_ground_truth_mind(f), output)
+    save_ground_truth(extract_ground_truth(load_impressions(f)), output)
 
     _, _, positions, ids = parse_output_line(open(output).readline())
     assert positions == []
@@ -125,7 +127,7 @@ def test_user_id_written_to_output(tmp_path):
     f = write_behaviors(tmp_path, ["1\tU42\t11/15/2019 10:00:00\t\tN1-1 N2-0"])
     output = str(tmp_path / "out.txt")
 
-    save_ground_truth_mind(load_ground_truth_mind(f), output)
+    save_ground_truth(extract_ground_truth(load_impressions(f)), output)
 
     _, user_id, _, _ = parse_output_line(open(output).readline())
     assert user_id == "U42"
@@ -149,7 +151,7 @@ def write_prediction_file(tmp_path, lines):
 def write_news(tmp_path, rows):
     p = tmp_path / "news.tsv"
     p.write_text("\n".join(f"{nid}\t{cat}\t{sub}" for nid, cat, sub in rows), encoding="utf-8")
-    return str(p)
+    return load_article_meta(str(p))
 
 
 def parse_user_map_line(line):
@@ -167,10 +169,10 @@ def test_user_map_groups_articles_by_user(tmp_path):
         "1 U1 [1] [N1]",
         "2 U1 [1] [N2]",
     ])
-    news = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
+    meta = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
     output = str(tmp_path / "out.txt")
 
-    save_user_article_map(pred, news, output)
+    save_user_article_map(pred, meta, output)
 
     lines = open(output).readlines()
     user_id, ids, _, _ = parse_user_map_line(lines[0])
@@ -185,15 +187,15 @@ def test_user_map_groups_articles_by_user(tmp_path):
 
 def test_user_map_correct_topics(tmp_path):
     pred = write_prediction_file(tmp_path, ["1 U1 [1,2] [N1,N2]"])
-    news = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
+    meta = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
     output = str(tmp_path / "out.txt")
 
-    save_user_article_map(pred, news, output)
+    save_user_article_map(pred, meta, output)
 
     _, _, topics, _ = parse_user_map_line(open(output).readline())
     assert topics == ["sports", "finance"]
     logger.info(
-        "Article topics are correctly looked up from news.tsv — "
+        "Article topics are correctly looked up from article metadata — "
         "expected ['sports', 'finance'], actual %s",
         topics
     )
@@ -201,15 +203,15 @@ def test_user_map_correct_topics(tmp_path):
 
 def test_user_map_correct_subtopics(tmp_path):
     pred = write_prediction_file(tmp_path, ["1 U1 [1,2] [N1,N2]"])
-    news = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
+    meta = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
     output = str(tmp_path / "out.txt")
 
-    save_user_article_map(pred, news, output)
+    save_user_article_map(pred, meta, output)
 
     _, _, _, subtopics = parse_user_map_line(open(output).readline())
     assert subtopics == ["golf", "investing"]
     logger.info(
-        "Article subcategories are correctly looked up from news.tsv — "
+        "Article subcategories are correctly looked up from article metadata — "
         "expected ['golf', 'investing'], actual %s",
         subtopics
     )
@@ -220,10 +222,10 @@ def test_user_map_multiple_users_have_separate_entries(tmp_path):
         "1 U1 [1] [N1]",
         "2 U2 [1] [N2]",
     ])
-    news = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
+    meta = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
     output = str(tmp_path / "out.txt")
 
-    save_user_article_map(pred, news, output)
+    save_user_article_map(pred, meta, output)
 
     lines = open(output).readlines()
     user_ids = {parse_user_map_line(l)[0] for l in lines}

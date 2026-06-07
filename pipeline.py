@@ -1,212 +1,336 @@
+"""End-to-end pipeline: load a dataset, run the baseline recommenders, write
+prediction / user-article files, and report diversity scores.
+
+The pipeline is dataset-agnostic. A dataset adapter (datasets/mind.py,
+datasets/ebnerd.py) normalizes the raw files into Impression records and
+article metadata; everything downstream is shared. Adding a dataset means
+adding an adapter and a DATASETS entry — no recommender or writer changes.
+"""
+
+import json
 import os
 import sys
+
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from recommenders.ground_truth import (
-    load_ground_truth_mind,
-    save_ground_truth_mind,
-    save_user_article_map as gt_save_map,
-)
-from recommenders.random_rec import (
-    load_impressions_mind,
-    random_recommend,
-    save_predictions_mind,
-    save_predictions_mind_topk,
-    save_user_article_map as random_save_map,
-)
-from recommenders.popular_rec import (
-    load_impressions_mind as popular_load_impressions,
-    popular_recommend,
-    save_predictions_mind as popular_save_predictions,
-    save_predictions_mind_topk as popular_save_topk,
-    save_user_article_map as popular_save_map,
+from datasets import mind, ebnerd
+from recommenders.ground_truth import extract_ground_truth, save_ground_truth
+from recommenders.random_rec import random_recommend
+from recommenders.popular_rec import popular_recommend
+from recommenders.io import (
+    save_predictions,
+    save_predictions_topk,
+    save_user_article_map,
 )
 from diversityScores.topic_diversity import topic_diversity, subtopic_diversity
 from diversityScores.content_diversity import content_diversity, load_news_embeddings
 
 
-def _nrms_topk(nrms_file, behaviors_file, ground_truth_file, output_topk):
-    """Convert prediction_nrms.txt (impr_id [ranks]) to a topk file
-    (impr_id user_id [positions] [ids]) using K from the ground truth.
-    The nrms file has no user_id column, so user_ids are loaded from behaviors.tsv.
+# ---------------------------------------------------------------------------
+# Dataset configuration
+# ---------------------------------------------------------------------------
+# Each entry describes where a dataset's raw files live (relative to its
+# data_dir) and which optional steps apply to it. Paths are tuples joined with
+# os.path.join so they work on any platform.
+DATASETS = {
+    "MIND": {
+        "adapter": mind,
+        "behaviors": ("MINDsmall_dev", "behaviors.tsv"),
+        "articles": ("MINDsmall_dev", "news.tsv"),
+        # MIND ships an NRMS prediction file and the embeddings/word-dict that
+        # content diversity needs.
+        "nrms": True,
+        "subtopic_category": "news",
+        "content_diversity": {
+            "embedding": ("utils", "embedding.npy"),
+            "word_dict": ("utils", "word_dict.pkl"),
+        },
+    },
+    "ebnerd": {
+        "adapter": ebnerd,
+        "behaviors": ("validation", "behaviors.parquet"),
+        "articles": ("articles.parquet",),
+        # eb-nerd has no shipped NRMS predictions and no embeddings yet, so both
+        # NRMS and content diversity are skipped. Its numeric subcategory codes
+        # don't map to a parent category, so subtopic diversity is skipped too
+        # (subtopic_category=None); topic diversity uses the multi-valued
+        # `topics` field instead.
+        "nrms": False,
+        "subtopic_category": None,
+        "content_diversity": None,
+    },
+}
+
+
+def _nrms_topk(nrms_file, impressions, output_topk):
+    """Convert a raw NRMS prediction file (impr_id [ranks]) to the top-k format
+    (impr_id user_id [positions] [ids]).
+
+    The NRMS file has no user_id column and only per-candidate ranks, so
+    user_ids, candidate ids and K (number of clicks) all come from the
+    normalized impressions.
     """
-    # impr_id → list of per-candidate ranks (rank 1 = best)
     nrms_ranks = {}
     with open(nrms_file, encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split()
-            impr_id = int(parts[0])
-            nrms_ranks[impr_id] = list(map(int, parts[1][1:-1].split(",")))
-
-    user_ids = {}
-    article_ids = {}
-    impression_order = []
-    with open(behaviors_file, encoding="utf-8") as f:
-        for line in f:
-            cols = line.strip().split("\t")
-            impr_id = int(cols[0])
-            user_ids[impr_id] = cols[1]
-            article_ids[impr_id] = [c.split("-")[0] for c in cols[4].split()]
-            impression_order.append(impr_id)
-
-    k_by_impr = {}
-    with open(ground_truth_file, encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split()
-            impr_id = int(parts[0])
-            inner = parts[2][1:-1]
-            k_by_impr[impr_id] = len(inner.split(",")) if inner else 0
+            nrms_ranks[int(parts[0])] = list(map(int, parts[1][1:-1].split(",")))
 
     with open(output_topk, "w", encoding="utf-8") as f:
-        for impr_id in impression_order:
-            ranks = nrms_ranks.get(impr_id, [])
-            k = k_by_impr.get(impr_id, 0)
-            ids = article_ids.get(impr_id, [])
-            user_id = user_ids.get(impr_id, "unknown")
+        for imp in impressions:
+            ranks = nrms_ranks.get(imp.impr_id, [])
+            k = sum(imp.labels)
             top_k_idx = np.argsort(ranks)[:k]
             positions = [i + 1 for i in top_k_idx]
-            chosen_ids = [ids[i] for i in top_k_idx]
-            f.write(f"{impr_id} {user_id} [" + ",".join(map(str, positions)) + "] [" + ",".join(chosen_ids) + "]\n")
+            chosen_ids = [imp.candidate_ids[i] for i in top_k_idx]
+            f.write(
+                f"{imp.impr_id} {imp.user_id} ["
+                + ",".join(map(str, positions))
+                + "] ["
+                + ",".join(chosen_ids)
+                + "]\n"
+            )
 
 
 def _exists(*paths):
     return all(os.path.exists(p) for p in paths)
 
 
-def run_pipeline(mind_dir, seed=42):
-    behaviors_file      = os.path.join(mind_dir, "MINDsmall_dev", "behaviors.tsv")
-    news_file           = os.path.join(mind_dir, "MINDsmall_dev", "news.tsv")
+# ---------------------------------------------------------------------------
+# Diversity-score cache
+# ---------------------------------------------------------------------------
+# Computing the diversity scores is the only pipeline step with no file output,
+# so without a cache it re-runs on every invocation even when nothing changed.
+# We persist scores to predictions/diversity_scores.json, keyed per recommender
+# and metric, alongside a signature of the user-article file the score was
+# computed from. A score is reused as long as that signature still matches.
+def _file_sig(path):
+    """Cheap change-signature for a file: modification time + size."""
+    st = os.stat(path)
+    return f"{st.st_mtime_ns}-{st.st_size}"
 
-    pred_dir            = os.path.join(mind_dir, "predictions")
 
-    gt_file             = os.path.join(pred_dir, "prediction_ground_truth.txt")
-    random_file         = os.path.join(pred_dir, "prediction_random.txt")
-    random_topk_file    = os.path.join(pred_dir, "prediction_random_topk.txt")
-    popular_file        = os.path.join(pred_dir, "prediction_popular.txt")
-    popular_topk_file   = os.path.join(pred_dir, "prediction_popular_topk.txt")
-    nrms_file           = os.path.join(pred_dir, "prediction_nrms.txt")
-    nrms_topk_file      = os.path.join(pred_dir, "prediction_nrms_topk.txt")
-    user_articles_gt     = os.path.join(pred_dir, "user_articles_ground_truth.txt")
-    user_articles_random = os.path.join(pred_dir, "user_articles_random.txt")
+def _load_score_cache(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_score_cache(path, cache):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2)
+
+
+def _compute_run_scores(path, metric_defs, prev_cache):
+    """Compute (or reuse) every metric for one user-article file.
+
+    metric_defs : list of (metric_key, fn) where fn(path) -> float.
+    prev_cache  : the cached {metric_key: {"value", "sig"}} for this run.
+
+    Returns (scores, cache, n_computed): scores is {metric_key: value} for
+    display; cache is the refreshed {metric_key: {"value", "sig"}} to persist;
+    n_computed counts how many metrics were actually (re)calculated.
+    """
+    sig = _file_sig(path)
+    scores, cache, n_computed = {}, {}, 0
+    for key, fn in metric_defs:
+        prev = prev_cache.get(key)
+        if prev is not None and prev.get("sig") == sig:
+            value = prev["value"]
+        else:
+            value = fn(path)
+            n_computed += 1
+        scores[key] = value
+        cache[key] = {"value": value, "sig": sig}
+    return scores, cache, n_computed
+
+
+def run_pipeline(data_dir, dataset="MIND", seed=42):
+    if dataset not in DATASETS:
+        raise ValueError(f"Unknown dataset {dataset!r}; choose from {list(DATASETS)}")
+    cfg = DATASETS[dataset]
+    adapter = cfg["adapter"]
+
+    behaviors_file = os.path.join(data_dir, *cfg["behaviors"])
+    articles_file = os.path.join(data_dir, *cfg["articles"])
+
+    pred_dir = os.path.join(data_dir, "predictions")
+    os.makedirs(pred_dir, exist_ok=True)
+
+    gt_file               = os.path.join(pred_dir, "prediction_ground_truth.txt")
+    random_file           = os.path.join(pred_dir, "prediction_random.txt")
+    random_topk_file      = os.path.join(pred_dir, "prediction_random_topk.txt")
+    popular_file          = os.path.join(pred_dir, "prediction_popular.txt")
+    popular_topk_file     = os.path.join(pred_dir, "prediction_popular_topk.txt")
+    nrms_file             = os.path.join(pred_dir, "prediction_nrms.txt")
+    nrms_topk_file        = os.path.join(pred_dir, "prediction_nrms_topk.txt")
+    user_articles_gt      = os.path.join(pred_dir, "user_articles_ground_truth.txt")
+    user_articles_random  = os.path.join(pred_dir, "user_articles_random.txt")
     user_articles_popular = os.path.join(pred_dir, "user_articles_popular.txt")
-    user_articles_nrms   = os.path.join(pred_dir, "user_articles_nrms.txt")
+    user_articles_nrms    = os.path.join(pred_dir, "user_articles_nrms.txt")
+
+    use_nrms = cfg["nrms"]
 
     # -------------------------------------------------------------------------
     # Step 0 — Check which files already exist
     # -------------------------------------------------------------------------
     skip_gt      = _exists(gt_file)
     skip_random  = _exists(random_file, random_topk_file)
-    skip_nrms    = _exists(nrms_topk_file)
+    skip_nrms    = (not use_nrms) or _exists(nrms_topk_file)
     skip_popular = _exists(popular_file, popular_topk_file)
-    skip_maps    = _exists(user_articles_gt, user_articles_random,
-                           user_articles_popular, user_articles_nrms)
+    map_files    = [user_articles_gt, user_articles_random, user_articles_popular]
+    if use_nrms:
+        map_files.append(user_articles_nrms)
+    skip_maps    = _exists(*map_files)
 
-    print("Step 0/6 — Checking existing files...")
+    print(f"Step 0/6 — Checking existing files for dataset '{dataset}'...")
     for label, skip in [
-        ("Ground truth",          skip_gt),
-        ("Random predictions",    skip_random),
-        ("NRMS topk",             skip_nrms),
-        ("Popular predictions",   skip_popular),
-        ("User article maps",     skip_maps),
+        ("Ground truth",        skip_gt),
+        ("Random predictions",  skip_random),
+        ("NRMS topk",           skip_nrms),
+        ("Popular predictions", skip_popular),
+        ("User article maps",   skip_maps),
     ]:
         print(f"  {'SKIP' if skip else 'RUN '} — {label}")
 
+    # Load the dataset once; every step below reuses these in-memory structures.
+    impressions = adapter.load_impressions(behaviors_file)
+    article_meta = adapter.load_article_meta(articles_file)
+
     # -------------------------------------------------------------------------
     # Step 1 — Ground truth
-    # Depends on: behaviors.tsv
     # -------------------------------------------------------------------------
     if skip_gt:
         print("Step 1/6 — Ground truth already exists, skipping.")
     else:
         print("Step 1/6 — Generating ground truth...")
-        gt_results = load_ground_truth_mind(behaviors_file)
-        save_ground_truth_mind(gt_results, gt_file)
+        save_ground_truth(extract_ground_truth(impressions), gt_file)
 
     # -------------------------------------------------------------------------
     # Step 2 — Random recommendations
-    # Depends on: behaviors.tsv, gt_file (for topk K values)
     # -------------------------------------------------------------------------
     if skip_random:
         print("Step 2/6 — Random predictions already exist, skipping.")
     else:
         print("Step 2/6 — Generating random recommendations...")
-        impressions = load_impressions_mind(behaviors_file)
         random_results = random_recommend(impressions, seed=seed)
-        save_predictions_mind(random_results, random_file)
-        save_predictions_mind_topk(random_results, behaviors_file, gt_file, random_topk_file)
+        save_predictions(random_results, random_file)
+        save_predictions_topk(random_results, impressions, random_topk_file)
 
     # -------------------------------------------------------------------------
-    # Step 3 — NRMS topk
-    # Depends on: prediction_nrms.txt, behaviors.tsv, gt_file
+    # Step 3 — NRMS topk (MIND only)
     # -------------------------------------------------------------------------
     if skip_nrms:
-        print("Step 3/6 — NRMS topk already exists, skipping.")
+        reason = "not applicable for this dataset" if not use_nrms else "already exists"
+        print(f"Step 3/6 — NRMS topk {reason}, skipping.")
     else:
         print("Step 3/6 — Converting NRMS predictions to top-k format...")
-        _nrms_topk(nrms_file, behaviors_file, gt_file, nrms_topk_file)
+        _nrms_topk(nrms_file, impressions, nrms_topk_file)
 
     # -------------------------------------------------------------------------
     # Step 4 — Popular recommendations
-    # Depends on: behaviors.tsv, gt_file (for topk K values)
     # -------------------------------------------------------------------------
     if skip_popular:
         print("Step 4/6 — Popular predictions already exist, skipping.")
     else:
         print("Step 4/6 — Generating popular recommendations...")
-        rows = popular_load_impressions(behaviors_file)
-        popular_results = popular_recommend(rows)
-        popular_save_predictions(popular_results, popular_file)
-        popular_save_topk(popular_results, behaviors_file, gt_file, popular_topk_file)
+        popular_results = popular_recommend(impressions)
+        save_predictions(popular_results, popular_file)
+        save_predictions_topk(popular_results, impressions, popular_topk_file)
 
     # -------------------------------------------------------------------------
     # Step 5 — User article maps
-    # Depends on: gt_file, random_topk_file, popular_topk_file, nrms_topk_file, news.tsv
     # -------------------------------------------------------------------------
     if skip_maps:
         print("Step 5/6 — User article maps already exist, skipping.")
     else:
         print("Step 5/6 — Building user article maps...")
-        gt_save_map(gt_file, news_file, user_articles_gt)
-        random_save_map(random_topk_file, news_file, user_articles_random)
-        popular_save_map(popular_topk_file, news_file, user_articles_popular)
-        random_save_map(nrms_topk_file, news_file, user_articles_nrms)
+        save_user_article_map(gt_file, article_meta, user_articles_gt)
+        save_user_article_map(random_topk_file, article_meta, user_articles_random)
+        save_user_article_map(popular_topk_file, article_meta, user_articles_popular)
+        if use_nrms:
+            save_user_article_map(nrms_topk_file, article_meta, user_articles_nrms)
 
     # -------------------------------------------------------------------------
-    # Step 6 — Diversity scores
-    # Depends on: user article maps (always runs — no file output)
+    # Step 6 — Diversity scores (cached; only recomputed when inputs change)
     # -------------------------------------------------------------------------
     print("Step 6/6 — Calculating diversity scores...")
-    news_embeddings = load_news_embeddings(
-        news_file,
-        os.path.join(mind_dir, "utils", "embedding.npy"),
-        os.path.join(mind_dir, "utils", "word_dict.pkl"),
-    )
-    scores = {}
-    for name, path in [
+    subtopic_category = cfg["subtopic_category"]
+    cd_cfg = cfg["content_diversity"]
+
+    # Embeddings are only needed to (re)compute content diversity, and loading
+    # them is expensive, so load lazily and at most once per run.
+    _embeddings = {}
+    def get_embeddings():
+        if "value" not in _embeddings:
+            _embeddings["value"] = load_news_embeddings(
+                articles_file,
+                os.path.join(data_dir, *cd_cfg["embedding"]),
+                os.path.join(data_dir, *cd_cfg["word_dict"]),
+            )
+        return _embeddings["value"]
+
+    # Which metrics apply to this dataset, as (key, fn(path) -> float).
+    # Subtopic diversity only applies when subcategories nest under a parent
+    # category (subtopic_category set); content diversity only when embeddings
+    # are shipped (content_diversity config present). eb-nerd has neither.
+    metric_defs = [("topic_diversity", lambda p: topic_diversity(p))]
+    if subtopic_category is not None:
+        metric_defs.append(
+            ("subtopic_diversity", lambda p: subtopic_diversity(p, category=subtopic_category))
+        )
+    if cd_cfg is not None:
+        metric_defs.append(
+            ("content_diversity", lambda p: content_diversity(p, get_embeddings()))
+        )
+
+    runs = [
         ("random",       user_articles_random),
         ("popular",      user_articles_popular),
-        ("nrms",         user_articles_nrms),
         ("ground_truth", user_articles_gt),
-    ]:
-        scores[name] = {
-            "topic_diversity":           topic_diversity(path),
-            "subtopic_diversity_news":   subtopic_diversity(path, category="news"),
-            "content_diversity":         content_diversity(path, news_embeddings),
-        }
+    ]
+    if use_nrms:
+        runs.insert(2, ("nrms", user_articles_nrms))
+
+    cache_file = os.path.join(pred_dir, "diversity_scores.json")
+    old_cache = _load_score_cache(cache_file)
+    new_cache = {}
+    scores = {}
+    total_computed = 0
+    for name, path in runs:
+        entry, run_cache, n_computed = _compute_run_scores(
+            path, metric_defs, old_cache.get(name, {})
+        )
+        scores[name] = entry
+        new_cache[name] = run_cache
+        total_computed += n_computed
+
+    if new_cache != old_cache:
+        _save_score_cache(cache_file, new_cache)
+
+    reused = len(runs) * len(metric_defs) - total_computed
+    print(f"  {total_computed} score(s) computed, {reused} reused from cache.")
 
     print("\n=== Diversity Scores ===")
     for name, s in scores.items():
         print(f"\n  {name}:")
-        print(f"    Topic diversity:           {s['topic_diversity']:.4f}")
-        print(f"    Subtopic diversity (news): {s['subtopic_diversity_news']:.4f}")
-        print(f"    Content diversity (ILD):   {s['content_diversity']:.4f}")
+        print(f"    Topic diversity:      {s['topic_diversity']:.4f}")
+        if "subtopic_diversity" in s:
+            print(f"    Subtopic diversity:   {s['subtopic_diversity']:.4f}")
+        if "content_diversity" in s:
+            print(f"    Content diversity:    {s['content_diversity']:.4f}")
 
     return scores
 
 
 if __name__ == "__main__":
     _project_dir = os.path.dirname(os.path.abspath(__file__))
-    _mind_dir = os.path.join(_project_dir, "data", "MIND")
-    run_pipeline(_mind_dir)
+    # Default to MIND; pass a dataset name to run another, e.g.:
+    #   python pipeline.py ebnerd
+    _dataset = sys.argv[1] if len(sys.argv) > 1 else "MIND"
+    _data_dir = os.path.join(_project_dir, "data", _dataset)
+    run_pipeline(_data_dir, dataset=_dataset)

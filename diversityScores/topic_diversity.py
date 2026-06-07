@@ -15,18 +15,37 @@ def _parse_user_articles(user_articles_file):
 
 
 def topic_diversity(user_articles_file):
-    """Average of (unique topics / total clicks) across users with more than one click."""
+    """Average of (unique topics / total topic assignments) across users with more than one click.
+
+    An article may carry several topics. They are stored as a single
+    "|"-separated group in the topics field (e.g. "Crime|Violent_crime"); all of
+    an article's topics are flattened and counted. For single-topic datasets
+    (e.g. MIND) each group is just one topic, so this reduces to the plain
+    unique-topics / number-of-articles ratio.
+
+    Articles with no topics are stored as the sentinel "none"; these are
+    filtered out and contribute to neither the unique count nor the total. A
+    user left with no topics after filtering is skipped entirely.
+    """
     per_user = []
     for _, (ids, topics, _) in _parse_user_articles(user_articles_file).items():
         if len(ids) <= 1:
             continue
-        per_user.append(len(set(topics)) / len(topics))
+        flat = [t for group in topics for t in group.split("|") if t != "none"]
+        if not flat:
+            continue
+        per_user.append(len(set(flat)) / len(flat))
     return sum(per_user) / len(per_user) if per_user else 0.0
 
 
 def subtopic_diversity(user_articles_file, category="news"):
     """Average of (unique subtopics / total clicks in category) across users with more than one click.
     Users who have no clicks in the given category contribute 0.
+
+    This metric only makes sense when subtopics are nested under a parent
+    category (as in MIND). Datasets whose subcategories cannot be mapped to a
+    parent category (e.g. eb-nerd) should not call this — the pipeline skips it
+    for them.
     """
     per_user = []
     for _, (ids, topics, subtopics) in _parse_user_articles(user_articles_file).items():
