@@ -17,19 +17,31 @@ unchanged. All eb-nerd-specific format knowledge lives here:
 Article ids are integers in eb-nerd; we stringify them so downstream code can
 treat ids uniformly across datasets.
 
-Requires pandas + a Parquet engine (pyarrow).
+Parquet is read via pyarrow directly (not pandas.read_parquet). Going through
+pandas' parquet engine can re-register pandas' pyarrow extension types and
+raise "A type extension with name pandas.period already defined" when modules
+are re-imported (e.g. Solara's dev-server hot-reload). Reading with pyarrow
+avoids that path entirely.
+
+Requires pyarrow.
 """
 
-import pandas as pd
+import pyarrow.parquet as pq
 
 from datasets.common import Impression
 
 
+def _read_columns(path, columns):
+    """Read selected columns of a Parquet file as {column: python_list}."""
+    table = pq.read_table(path, columns=columns)
+    return {name: table.column(name).to_pylist() for name in columns}
+
+
 def load_impressions(behaviors_file):
     """Read behaviors.parquet into a list of normalized Impression records."""
-    df = pd.read_parquet(
+    cols = _read_columns(
         behaviors_file,
-        columns=[
+        [
             "impression_id",
             "user_id",
             "impression_time",
@@ -38,18 +50,18 @@ def load_impressions(behaviors_file):
         ],
     )
     impressions = []
-    for row in df.itertuples(index=False):
-        candidate_ids = [str(a) for a in row.article_ids_inview]
-        clicked = {str(a) for a in row.article_ids_clicked}
-        labels = [1 if aid in clicked else 0 for aid in candidate_ids]
+    for impr_id, user_id, timestamp, inview, clicked in zip(
+        cols["impression_id"],
+        cols["user_id"],
+        cols["impression_time"],
+        cols["article_ids_inview"],
+        cols["article_ids_clicked"],
+    ):
+        candidate_ids = [str(a) for a in inview]
+        clicked_set = {str(a) for a in clicked}
+        labels = [1 if aid in clicked_set else 0 for aid in candidate_ids]
         impressions.append(
-            Impression(
-                int(row.impression_id),
-                str(row.user_id),
-                row.impression_time,
-                candidate_ids,
-                labels,
-            )
+            Impression(int(impr_id), str(user_id), timestamp, candidate_ids, labels)
         )
     return impressions
 
@@ -65,19 +77,18 @@ def load_article_meta(articles_file):
                mapped to a parent category, so they are not valid subtopics and
                the pipeline does not compute subtopic diversity for eb-nerd.
     """
-    df = pd.read_parquet(articles_file, columns=["article_id", "topics"])
+    cols = _read_columns(articles_file, ["article_id", "topics"])
     meta = {}
-    for row in df.itertuples(index=False):
-        topics = row.topics
+    for article_id, topics in zip(cols["article_id"], cols["topics"]):
         if topics is None or len(topics) == 0:
             topics_str = "none"
         else:
             topics_str = "|".join("_".join(t.split()) for t in topics)
-        meta[str(row.article_id)] = (topics_str, "none")
+        meta[str(article_id)] = (topics_str, "none")
     return meta
 
 
 def load_titles(articles_file):
     """Read articles.parquet into {article_id: title} (ids stringified)."""
-    df = pd.read_parquet(articles_file, columns=["article_id", "title"])
-    return {str(row.article_id): row.title for row in df.itertuples(index=False)}
+    cols = _read_columns(articles_file, ["article_id", "title"])
+    return {str(aid): title for aid, title in zip(cols["article_id"], cols["title"])}

@@ -17,7 +17,12 @@ import os
 import random
 
 import solara
+import solara.lab
 from matplotlib.figure import Figure
+
+# App primary color (Material green). Used for the vuetify theme as well as the
+# matplotlib chart and score number, which aren't theme-aware.
+PRIMARY_GREEN = "#2e7d32"
 
 from pipeline import (
     DATASETS,
@@ -62,17 +67,72 @@ METRIC_LABELS = {
 
 
 # ---------------------------------------------------------------------------
-# Placeholder copy (Lorem ipsum) shown for dataset / recommender choices
+# Explanatory copy shown for each dataset / recommender / metric choice
 # ---------------------------------------------------------------------------
-_LOREM = (
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod "
-    "tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, "
-    "quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo "
-    "consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse "
-    "cillum dolore eu fugiat nulla pariatur."
-)
-DATASET_TEXT = {ds: _LOREM for ds in DATASETS}
-RECOMMENDER_TEXT = {rec: _LOREM for rec in REC_LABELS}
+DATASET_TEXT = {
+    "MIND": (
+        "**MIND** (Microsoft News Dataset) — English news from *Microsoft News*. "
+        "Each impression records the candidate articles shown to a user, which "
+        "one(s) they clicked, and the user's reading history. Every article has a "
+        "**category** (e.g. sports, finance, news) and a **subcategory**, plus a "
+        "title and abstract. This app uses the small dev split."
+    ),
+    "ebnerd": (
+        "**EB-NeRD** (Ekstra Bladet News Recommendation Dataset) — Danish news from "
+        "the tabloid *Ekstra Bladet*. Each impression lists the articles in view "
+        "and which were clicked. Articles carry one **category** plus several "
+        "free-text **topics**, along with richer signals (full body text, read "
+        "time, sentiment). Its subcategories are opaque numeric codes with no "
+        "parent category, so only topic diversity is computed for it."
+    ),
+}
+
+RECOMMENDER_TEXT = {
+    "random": (
+        "**Random** — assigns each candidate article a uniform random score. A "
+        "no-personalization baseline; it tends to look highly diverse precisely "
+        "because it ignores relevance."
+    ),
+    "popular": (
+        "**Popular** — ranks candidates only by how often they were clicked in "
+        "*earlier* impressions (global popularity), identically for every user. "
+        "Counts are accumulated in time order, so no future clicks leak into a "
+        "score."
+    ),
+    "nrms": (
+        "**NRMS** — a neural recommender (*Neural News Recommendation with "
+        "Multi-Head Self-Attention*). It builds a user representation from the "
+        "articles in their history and scores each candidate by predicted "
+        "relevance. Pre-computed predictions ship with MIND only."
+    ),
+    "ground_truth": (
+        "**Ground truth** — not a recommender but the reference point: the articles "
+        "the user *actually* clicked. Every other system's diversity is judged "
+        "against this."
+    ),
+}
+
+METRIC_TEXT = {
+    "topic": (
+        "**Topic diversity** — the share of *distinct* topics among a user's "
+        "articles (unique topics ÷ total topic assignments), averaged over users "
+        "with more than one click. 1.0 means every article has a different topic; "
+        "low means many share the same one. *Topic* = the article's category "
+        "(MIND) or its set of topic labels (EB-NeRD)."
+    ),
+    "subtopic": (
+        "**Subtopic diversity** — the same idea one level finer: within a parent "
+        "category (here *news* for MIND), the share of distinct subcategories. It "
+        "captures variety *inside* a single topic. Defined for MIND only — "
+        "EB-NeRD's subcategory codes don't map to a parent category."
+    ),
+    "content": (
+        "**Content diversity (ILD)** — *intra-list diversity*: 1 minus the average "
+        "pairwise cosine similarity of the articles' title embeddings. It measures "
+        "how semantically different the articles are, independent of category "
+        "labels. Needs embeddings, so MIND only."
+    ),
+}
 
 INTRO_MD = """
 # EchoBench
@@ -241,6 +301,9 @@ def PillGroup(options, selected, labels, on_select):
 @solara.component
 def Page():
     solara.Title("EchoBench — Diversity Dashboard")
+    # Make the app's primary accent green (pills, outlined buttons, etc.).
+    solara.lab.theme.themes.light.primary = PRIMARY_GREEN
+    solara.lab.theme.themes.dark.primary = PRIMARY_GREEN
 
     with solara.Column(style={"max-width": "860px", "margin": "0 auto", "padding": "24px"}):
         solara.Markdown(INTRO_MD)
@@ -267,6 +330,7 @@ def Page():
         ):
             with solara.Column():
                 PillGroup(METRICS, metric.value, METRIC_LABELS, metric.set)
+                solara.Markdown(METRIC_TEXT[metric.value])
                 value, message = compute_score(dataset.value, recommender.value, metric.value)
                 ScoreCard(value, message)
 
@@ -284,7 +348,7 @@ def Page():
                     "The articles this user actually clicked, next to what "
                     f"**{REC_LABELS[recommender.value]}** would have recommended them."
                 )
-                ExamplesPanel(dataset.value, recommender.value)
+                ExamplesPanel(dataset.value, recommender.value, metric.value)
 
 
 @solara.component
@@ -299,7 +363,7 @@ def ScoreCard(value, message):
             solara.Info(message)
         else:
             solara.Markdown(
-                f"<div style='font-size:48px;font-weight:700;color:#1976d2'>{value:.4f}</div>",
+                f"<div style='font-size:48px;font-weight:700;color:{PRIMARY_GREEN}'>{value:.4f}</div>",
             )
             solara.Markdown(
                 "_Higher means the recommended articles are more diverse "
@@ -310,8 +374,8 @@ def ScoreCard(value, message):
 # ---------------------------------------------------------------------------
 # Visualization
 # ---------------------------------------------------------------------------
-_CHOSEN_COLOR = "#1976d2"   # highlight for the selected recommender's bar
-_OTHER_COLOR = "#cfd8dc"    # muted grey for the rest
+_CHOSEN_COLOR = PRIMARY_GREEN   # highlight for the selected recommender's bar
+_OTHER_COLOR = "#cfd8dc"        # muted grey for the rest
 
 # Solara alert component to use per interpretation severity.
 _ALERT = {"warning": solara.Warning, "info": solara.Info, "success": solara.Success}
@@ -382,13 +446,21 @@ def ComparisonChart(dataset, recommender, metric):
     # Keep a stable recommender order; drop any without a value for this metric.
     recs = [r for r in RECOMMENDERS[dataset] if r in scores]
     values = [scores[r] for r in recs]
-    labels = [REC_LABELS[r] for r in recs]
+    # Mark ground truth with a trailing "*" — it's the reference, not a recommender.
+    labels = [REC_LABELS[r] + (" *" if r == "ground_truth" else "") for r in recs]
     colors = [_CHOSEN_COLOR if r == recommender else _OTHER_COLOR for r in recs]
 
     # Object-oriented Figure (not pyplot) to avoid global state on the server.
     fig = Figure(figsize=(6.2, 3.4))
     ax = fig.subplots()
     bars = ax.bar(labels, values, color=colors, edgecolor="#90a4ae")
+    # Ground truth isn't a recommender, so always set it apart with a hatch
+    # pattern (and a darker edge so the stripes read on both green and grey
+    # fills) — independent of which recommender is currently selected.
+    for bar, r in zip(bars, recs):
+        if r == "ground_truth":
+            bar.set_hatch("//")
+            bar.set_edgecolor("#607d8b")
     ax.set_ylabel(METRIC_LABELS[metric])
     ax.set_ylim(0, max(values) * 1.18)
     ax.set_title(f"{METRIC_LABELS[metric]} by recommender — {DATASET_LABELS[dataset]}")
@@ -401,6 +473,12 @@ def ComparisonChart(dataset, recommender, metric):
     fig.tight_layout()
 
     solara.FigureMatplotlib(fig)
+
+    if "ground_truth" in recs:
+        solara.Markdown(
+            "_\\* reference — the articles users actually clicked, not a "
+            "recommender (shown hatched)._"
+        )
 
     message, severity = interpret_vs_ground_truth(recommender, scores, metric)
     if message:
@@ -422,10 +500,10 @@ def _fmt_topic(topic):
 
 
 def _articles_for_user(dataset, recommender, kind):
-    """Return [(article_id, topic)] for a user, for kind 'clicked' or 'recommended'.
+    """Return {user: (ids, topics, subtopics)} for kind 'clicked' or 'recommended'.
 
     'clicked' reads the ground-truth user-article map; 'recommended' reads the
-    chosen recommender's map. Returns {} signal via the caller.
+    chosen recommender's map. Returns None when the file doesn't exist yet.
     """
     rec = "ground_truth" if kind == "clicked" else recommender
     path = _user_articles_path(dataset, rec)
@@ -435,20 +513,32 @@ def _articles_for_user(dataset, recommender, kind):
 
 
 @solara.component
-def ArticleList(title, ids, topics, titles):
+def ArticleList(title, ids, topics, subtopics, titles, show_subtopic, category):
     with solara.Card(title, style={"height": "100%"}):
         with solara.Column(gap="4px"):
-            for aid, topic in zip(ids, topics):
+            for aid, topic, subtopic in zip(ids, topics, subtopics):
                 name = titles.get(aid) or f"(article {aid})"
                 if len(name) > 80:
                     name = name[:80] + "…"
+                # topic always; subtopic only when subtopic diversity is selected.
+                bits = []
                 tp = _fmt_topic(topic)
-                suffix = f"  ·  _{tp}_" if tp else ""
-                solara.Markdown(f"- {name}{suffix}")
+                if tp:
+                    bits.append(tp)
+                if show_subtopic:
+                    st = _fmt_topic(subtopic)
+                    if st:
+                        bits.append(st)
+                suffix = f"  ·  _{' › '.join(bits)}_" if bits else ""
+                # When subtopic diversity is selected, the articles it actually
+                # considers are those in the parent category — mark them in bold.
+                considered = show_subtopic and category is not None and topic == category
+                name_md = f"**{name}**" if considered else name
+                solara.Markdown(f"- {name_md}{suffix}")
 
 
 @solara.component
-def ExamplesPanel(dataset, recommender):
+def ExamplesPanel(dataset, recommender, metric):
     clicked_map = _articles_for_user(dataset, recommender, "clicked")
     rec_map = _articles_for_user(dataset, recommender, "recommended")
 
@@ -468,8 +558,11 @@ def ExamplesPanel(dataset, recommender):
         return
 
     titles = _get_titles(dataset)
-    clicked_ids, clicked_topics, _ = clicked_map[user]
-    rec_ids, rec_topics, _ = rec_map[user]
+    clicked_ids, clicked_topics, clicked_subtopics = clicked_map[user]
+    rec_ids, rec_topics, rec_subtopics = rec_map[user]
+
+    show_subtopic = metric == "subtopic"
+    category = DATASETS[dataset]["subtopic_category"]
 
     with solara.Row(style={"align-items": "center", "gap": "12px", "margin-bottom": "8px"}):
         solara.Markdown(f"**User `{user}`** — {len(clicked_ids)} clicked article(s)")
@@ -480,8 +573,18 @@ def ExamplesPanel(dataset, recommender):
             classes=["rounded-pill", "text-none"],
         )
 
+    if show_subtopic and category is not None:
+        solara.Markdown(
+            f"Articles in the **{category}** category — the ones subtopic diversity "
+            "is measured on — are shown in **bold**."
+        )
+
     with solara.Columns([1, 1]):
-        ArticleList("Actually clicked (ground truth)", clicked_ids, clicked_topics, titles)
         ArticleList(
-            f"Recommended by {REC_LABELS[recommender]}", rec_ids, rec_topics, titles
+            "Actually clicked (ground truth)",
+            clicked_ids, clicked_topics, clicked_subtopics, titles, show_subtopic, category,
+        )
+        ArticleList(
+            f"Recommended by {REC_LABELS[recommender]}",
+            rec_ids, rec_topics, rec_subtopics, titles, show_subtopic, category,
         )

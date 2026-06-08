@@ -1,5 +1,7 @@
 """Explore the eb-nerd dataset.
 
+TODO: Delete in the end! Not really needed for the project. Was mainly generated to find differences between ebnerd and MIND.
+
 eb-nerd (Ekstra Bladet News Recommendation Dataset) is the second news source
 we want to add to EchoBench. Before wiring it into the pipeline this script just
 *logs* what the data looks like, and — importantly — calls out where it differs

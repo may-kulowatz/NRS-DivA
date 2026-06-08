@@ -61,3 +61,20 @@ The pipeline does the following:
 - starts the prediction processes for each dataset and recommender system and writes the results to txt files. (This step is skipped if the file alreaady exists.)
 - calculates the diversity scores and prints them in the console (TODO: skip this step if already calculated and no changes were made)
 - transfers the results to GUI (still to be implemented)
+
+## To-Dos
+- fix subtopics implementation
+- explain own recommenders better
+- explain topic diversity better (especially formular)
+- add option to exclude users with less than x clicked articles
+- explain the ranking (topk from where) use
+- delete evaluation and explore-ebnerd eventually
+- refactor recommender structure (io.py somewhere else?)
+- Add more MIND recommenders
+- Add content-diversity to ebnerd
+- enrich texts in Solara Dashboard + add links
+- add information about code taken from other repositories (ebnerd, MIND, recommenders, content-diversity)
+- add license information
+- test the tests
+- clean up the tests
+- add requirements to README
