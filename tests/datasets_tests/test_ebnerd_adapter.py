@@ -1,7 +1,7 @@
 """Tests for the eb-nerd dataset adapter.
 
 These build tiny synthetic Parquet files (so no large dataset download is
-needed) and check that datasets/ebnerd.py normalizes them into the same
+needed) and check that datasets/ebnerd_adapter.py normalizes them into the same
 Impression / article-metadata shape the rest of the pipeline expects.
 
 Skipped automatically if pandas + a Parquet engine are not installed.
@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 pd = pytest.importorskip("pandas")
 pytest.importorskip("pyarrow")
 
-from datasets.ebnerd import load_impressions, load_article_meta, load_titles
+from datasets.ebnerd_adapter import load_impressions, load_article_meta, load_titles
 
 logger = logging.getLogger(__name__)
 

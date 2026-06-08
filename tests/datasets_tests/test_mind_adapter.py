@@ -6,7 +6,7 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from datasets.mind import load_article_meta, load_titles
+from datasets.mind_adapter import load_article_meta, load_titles
 
 logger = logging.getLogger(__name__)
 

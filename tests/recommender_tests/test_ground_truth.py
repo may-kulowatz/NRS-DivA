@@ -4,7 +4,7 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from datasets.mind import load_impressions, load_article_meta
+from datasets.mind_adapter import load_impressions, load_article_meta
 from recommenders.ground_truth import extract_ground_truth, save_ground_truth
 from recommenders.io import save_user_article_map
 

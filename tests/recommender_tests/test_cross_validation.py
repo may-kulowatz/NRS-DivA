@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from datasets.mind import load_impressions, load_article_meta
+from datasets.mind_adapter import load_impressions, load_article_meta
 from recommenders.random_rec import random_recommend
 from recommenders.popular_rec import popular_recommend
 from recommenders.ground_truth import extract_ground_truth, save_ground_truth

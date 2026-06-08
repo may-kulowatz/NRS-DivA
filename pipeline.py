@@ -1,8 +1,8 @@
 """End-to-end pipeline: load a dataset, run the baseline recommenders, write
 prediction / user-article files, and report diversity scores.
 
-The pipeline is dataset-agnostic. A dataset adapter (datasets/mind.py,
-datasets/ebnerd.py) normalizes the raw files into Impression records and
+The pipeline is dataset-agnostic. A dataset adapter (datasets/mind_adapter.py,
+datasets/ebnerd_adapter.py) normalizes the raw files into Impression records and
 article metadata; everything downstream is shared. Adding a dataset means
 adding an adapter and a DATASETS entry — no recommender or writer changes.
 """
@@ -15,7 +15,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from datasets import mind, ebnerd
+from datasets import mind_adapter, ebnerd_adapter
 from recommenders.ground_truth import extract_ground_truth, save_ground_truth
 from recommenders.random_rec import random_recommend
 from recommenders.popular_rec import popular_recommend
@@ -36,7 +36,7 @@ from diversityScores.content_diversity import content_diversity, load_news_embed
 # os.path.join so they work on any platform.
 DATASETS = {
     "MIND": {
-        "adapter": mind,
+        "adapter": mind_adapter,
         "behaviors": ("MINDsmall_dev", "behaviors.tsv"),
         "articles": ("MINDsmall_dev", "news.tsv"),
         # MIND ships an NRMS prediction file and the embeddings/word-dict that
@@ -49,7 +49,7 @@ DATASETS = {
         },
     },
     "ebnerd": {
-        "adapter": ebnerd,
+        "adapter": ebnerd_adapter,
         "behaviors": ("validation", "behaviors.parquet"),
         "articles": ("articles.parquet",),
         # eb-nerd has no shipped NRMS predictions and no embeddings yet, so both

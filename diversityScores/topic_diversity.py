@@ -37,7 +37,7 @@ def topic_diversity(user_articles_file):
         per_user.append(len(set(flat)) / len(flat))
     return sum(per_user) / len(per_user) if per_user else 0.0
 
-
+# TODO: Fix subtopic diversity! Right now, it is buggy. Probably needs complete refactoring, and a creation of a completely new dataset with "news" only.
 def subtopic_diversity(user_articles_file, category="news"):
     """Average of (unique subtopics / total clicks in category) across users with more than one click.
     Users who have no clicks in the given category contribute 0.

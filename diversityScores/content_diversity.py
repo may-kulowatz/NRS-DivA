@@ -1,3 +1,5 @@
+# TODO: verify!! Also, add license and information about where this came from.
+
 import os
 import re
 import pickle

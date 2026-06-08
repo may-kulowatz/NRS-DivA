@@ -6,7 +6,7 @@ recommender's lists are compared to one another and to the ground truth.
 
 ## Quick start
 
-Run the full pipeline with:
+First of all, install solara. After that, run the full pipeline with:
 
 ```bash
 python pipeline.py
@@ -62,7 +62,7 @@ The pipeline does the following:
 - calculates the diversity scores and prints them in the console (TODO: skip this step if already calculated and no changes were made)
 - transfers the results to GUI (still to be implemented)
 
-## To-Dos
+TODO:
 - fix subtopics implementation
 - explain own recommenders better
 - explain topic diversity better (especially formular)
@@ -77,4 +77,5 @@ The pipeline does the following:
 - add license information
 - test the tests
 - clean up the tests
-- add requirements to README
+- add requirements to README (solara for GUI, more stuff for pipeline)
+- Implement MIND_large and ebnerd_large
