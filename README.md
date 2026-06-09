@@ -33,7 +33,7 @@ there are txt files already prepared. The pipeline will skip the prediction and 
 ### Recommender Systems
 
 Each recommender produces a ranked top-k list per user impression
-(`recommenders/`):
+(`recommender_systems/`):
 
 - **Ground truth** (`ground_truth.py`) — the articles users actually clicked,
   used as the reference baseline.
@@ -44,7 +44,6 @@ Each recommender produces a ranked top-k list per user impression
 
 ### Diversity Scores
 
-Each recommender's lists are scored on three diversity metrics
 (`diversityScores/`):
 
 - **Topic diversity** (`topic_diversity.py`) — share of unique topics
@@ -53,6 +52,8 @@ Each recommender's lists are scored on three diversity metrics
   within a category.
 - **Content diversity / ILD** (`content_diversity.py`) — intra-list diversity
   based on the mean pairwise cosine *distance* between article title embeddings.
+
+Not all scores are compatible with all recommender systems!
 
 ## Software Architecture
 

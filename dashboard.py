@@ -46,15 +46,16 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------------------
 DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD"}
 
-# Recommenders available per dataset (eb-nerd ships no NRMS predictions).
+# Recommenders available per dataset (eb-nerd ships no model predictions).
 RECOMMENDERS = {
-    "MIND": ["random", "popular", "nrms", "ground_truth"],
+    "MIND": ["random", "popular", "nrms", "lstur", "ground_truth"],
     "ebnerd": ["random", "popular", "ground_truth"],
 }
 REC_LABELS = {
     "random": "Random",
     "popular": "Popular",
     "nrms": "NRMS",
+    "lstur": "LSTUR",
     "ground_truth": "Ground truth",
 }
 
@@ -104,6 +105,13 @@ RECOMMENDER_TEXT = {
         "Multi-Head Self-Attention*). It builds a user representation from the "
         "articles in their history and scores each candidate by predicted "
         "relevance. Pre-computed predictions ship with MIND only."
+    ),
+    "lstur": (
+        "**LSTUR** — a neural recommender (*Neural News Recommendation with "
+        "Long- and Short-term User Representations*). It combines a long-term "
+        "user embedding with a short-term interest built from the user's recent "
+        "reading history, then scores each candidate by predicted relevance. "
+        "Pre-computed predictions ship with MIND only."
     ),
     "ground_truth": (
         "**Ground truth** — not a recommender but the reference point: the articles "

@@ -16,10 +16,10 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datasets import mind_adapter, ebnerd_adapter
-from recommenders.ground_truth import extract_ground_truth, save_ground_truth
-from recommenders.random_rec import random_recommend
-from recommenders.popular_rec import popular_recommend
-from recommenders.io import (
+from recommender_systems.ground_truth import extract_ground_truth, save_ground_truth
+from recommender_systems.random_rec import random_recommend
+from recommender_systems.popular_rec import popular_recommend
+from recommender_systems.io import (
     save_predictions,
     save_predictions_topk,
     save_user_article_map,
@@ -39,9 +39,9 @@ DATASETS = {
         "adapter": mind_adapter,
         "behaviors": ("MINDsmall_dev", "behaviors.tsv"),
         "articles": ("MINDsmall_dev", "news.tsv"),
-        # MIND ships an NRMS prediction file and the embeddings/word-dict that
-        # content diversity needs.
-        "nrms": True,
+        # MIND ships pre-computed NRMS and LSTUR prediction files plus the
+        # embeddings/word-dict that content diversity needs.
+        "model_recs": ["nrms", "lstur"],
         "subtopic_category": "news",
         "content_diversity": {
             "embedding": ("utils", "embedding.npy"),
@@ -52,35 +52,35 @@ DATASETS = {
         "adapter": ebnerd_adapter,
         "behaviors": ("validation", "behaviors.parquet"),
         "articles": ("articles.parquet",),
-        # eb-nerd has no shipped NRMS predictions and no embeddings yet, so both
-        # NRMS and content diversity are skipped. Its numeric subcategory codes
-        # don't map to a parent category, so subtopic diversity is skipped too
-        # (subtopic_category=None); topic diversity uses the multi-valued
-        # `topics` field instead.
-        "nrms": False,
+        # eb-nerd ships no model prediction files and no embeddings yet, so both
+        # the model recommenders and content diversity are skipped. Its numeric
+        # subcategory codes don't map to a parent category, so subtopic diversity
+        # is skipped too (subtopic_category=None); topic diversity uses the
+        # multi-valued `topics` field instead.
+        "model_recs": [],
         "subtopic_category": None,
         "content_diversity": None,
     },
 }
 
 
-def _nrms_topk(nrms_file, impressions, output_topk):
-    """Convert a raw NRMS prediction file (impr_id [ranks]) to the top-k format
+def _prediction_topk(prediction_file, impressions, output_topk):
+    """Convert a raw model prediction file (impr_id [ranks]) to the top-k format
     (impr_id user_id [positions] [ids]).
 
-    The NRMS file has no user_id column and only per-candidate ranks, so
-    user_ids, candidate ids and K (number of clicks) all come from the
-    normalized impressions.
+    Model prediction files (NRMS, LSTUR, ...) have no user_id column and only
+    per-candidate ranks, so user_ids, candidate ids and K (number of clicks) all
+    come from the normalized impressions.
     """
-    nrms_ranks = {}
-    with open(nrms_file, encoding="utf-8") as f:
+    pred_ranks = {}
+    with open(prediction_file, encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split()
-            nrms_ranks[int(parts[0])] = list(map(int, parts[1][1:-1].split(",")))
+            pred_ranks[int(parts[0])] = list(map(int, parts[1][1:-1].split(",")))
 
     with open(output_topk, "w", encoding="utf-8") as f:
         for imp in impressions:
-            ranks = nrms_ranks.get(imp.impr_id, [])
+            ranks = pred_ranks.get(imp.impr_id, [])
             k = sum(imp.labels)
             top_k_idx = np.argsort(ranks)[:k]
             positions = [i + 1 for i in top_k_idx]
@@ -96,6 +96,18 @@ def _nrms_topk(nrms_file, impressions, output_topk):
 
 def _exists(*paths):
     return all(os.path.exists(p) for p in paths)
+
+
+def _stale(output, *inputs):
+    """True if output is missing or older than any existing input.
+
+    Lets a derived file be rebuilt when its source changed, instead of being
+    skipped just because some version of it already exists.
+    """
+    if not os.path.exists(output):
+        return True
+    out_mtime = os.path.getmtime(output)
+    return any(os.path.exists(i) and os.path.getmtime(i) > out_mtime for i in inputs)
 
 
 # ---------------------------------------------------------------------------
@@ -166,35 +178,38 @@ def run_pipeline(data_dir, dataset="MIND", seed=42):
     random_topk_file      = os.path.join(pred_dir, "prediction_random_topk.txt")
     popular_file          = os.path.join(pred_dir, "prediction_popular.txt")
     popular_topk_file     = os.path.join(pred_dir, "prediction_popular_topk.txt")
-    nrms_file             = os.path.join(pred_dir, "prediction_nrms.txt")
-    nrms_topk_file        = os.path.join(pred_dir, "prediction_nrms_topk.txt")
     user_articles_gt      = os.path.join(pred_dir, "user_articles_ground_truth.txt")
     user_articles_random  = os.path.join(pred_dir, "user_articles_random.txt")
     user_articles_popular = os.path.join(pred_dir, "user_articles_popular.txt")
-    user_articles_nrms    = os.path.join(pred_dir, "user_articles_nrms.txt")
 
-    use_nrms = cfg["nrms"]
+    # Model recommenders (NRMS, LSTUR, ...) each ship a raw prediction file that
+    # is converted to top-k and then to a user-article map, exactly like NRMS.
+    model_recs = cfg["model_recs"]
+    model_paths = {
+        name: {
+            "pred": os.path.join(pred_dir, f"prediction_{name}.txt"),
+            "topk": os.path.join(pred_dir, f"prediction_{name}_topk.txt"),
+            "map":  os.path.join(pred_dir, f"user_articles_{name}.txt"),
+        }
+        for name in model_recs
+    }
 
     # -------------------------------------------------------------------------
     # Step 0 — Check which files already exist
     # -------------------------------------------------------------------------
     skip_gt      = _exists(gt_file)
     skip_random  = _exists(random_file, random_topk_file)
-    skip_nrms    = (not use_nrms) or _exists(nrms_topk_file)
     skip_popular = _exists(popular_file, popular_topk_file)
-    map_files    = [user_articles_gt, user_articles_random, user_articles_popular]
-    if use_nrms:
-        map_files.append(user_articles_nrms)
-    skip_maps    = _exists(*map_files)
+    skip_model   = {name: not _stale(p["topk"], p["pred"]) for name, p in model_paths.items()}
 
     print(f"Step 0/6 — Checking existing files for dataset '{dataset}'...")
-    for label, skip in [
+    checks = [
         ("Ground truth",        skip_gt),
         ("Random predictions",  skip_random),
-        ("NRMS topk",           skip_nrms),
         ("Popular predictions", skip_popular),
-        ("User article maps",   skip_maps),
-    ]:
+    ]
+    checks += [(f"{name.upper()} topk", skip_model[name]) for name in model_recs]
+    for label, skip in checks:
         print(f"  {'SKIP' if skip else 'RUN '} — {label}")
 
     # Load the dataset once; every step below reuses these in-memory structures.
@@ -222,14 +237,18 @@ def run_pipeline(data_dir, dataset="MIND", seed=42):
         save_predictions_topk(random_results, impressions, random_topk_file)
 
     # -------------------------------------------------------------------------
-    # Step 3 — NRMS topk (MIND only)
+    # Step 3 — Model recommender topk (NRMS, LSTUR, ...; MIND only)
     # -------------------------------------------------------------------------
-    if skip_nrms:
-        reason = "not applicable for this dataset" if not use_nrms else "already exists"
-        print(f"Step 3/6 — NRMS topk {reason}, skipping.")
+    if not model_recs:
+        print("Step 3/6 — No model recommenders for this dataset, skipping.")
     else:
-        print("Step 3/6 — Converting NRMS predictions to top-k format...")
-        _nrms_topk(nrms_file, impressions, nrms_topk_file)
+        for name in model_recs:
+            p = model_paths[name]
+            if skip_model[name]:
+                print(f"Step 3/6 — {name.upper()} topk already up to date, skipping.")
+            else:
+                print(f"Step 3/6 — Converting {name.upper()} predictions to top-k format...")
+                _prediction_topk(p["pred"], impressions, p["topk"])
 
     # -------------------------------------------------------------------------
     # Step 4 — Popular recommendations
@@ -245,15 +264,24 @@ def run_pipeline(data_dir, dataset="MIND", seed=42):
     # -------------------------------------------------------------------------
     # Step 5 — User article maps
     # -------------------------------------------------------------------------
-    if skip_maps:
+    # Each map is rebuilt only when its source top-k file is newer (checked here,
+    # after Steps 1-4 have refreshed those sources), so replacing a model's
+    # prediction file rebuilds just that model's map and leaves the others'
+    # cached scores intact.
+    map_specs = [
+        (user_articles_gt, gt_file),
+        (user_articles_random, random_topk_file),
+        (user_articles_popular, popular_topk_file),
+    ]
+    map_specs += [(model_paths[name]["map"], model_paths[name]["topk"]) for name in model_recs]
+
+    stale_maps = [(out, src) for out, src in map_specs if _stale(out, src)]
+    if not stale_maps:
         print("Step 5/6 — User article maps already exist, skipping.")
     else:
         print("Step 5/6 — Building user article maps...")
-        save_user_article_map(gt_file, article_meta, user_articles_gt)
-        save_user_article_map(random_topk_file, article_meta, user_articles_random)
-        save_user_article_map(popular_topk_file, article_meta, user_articles_popular)
-        if use_nrms:
-            save_user_article_map(nrms_topk_file, article_meta, user_articles_nrms)
+        for out, src in stale_maps:
+            save_user_article_map(src, article_meta, out)
 
     # -------------------------------------------------------------------------
     # Step 6 — Diversity scores (cached; only recomputed when inputs change)
@@ -289,12 +317,11 @@ def run_pipeline(data_dir, dataset="MIND", seed=42):
         )
 
     runs = [
-        ("random",       user_articles_random),
-        ("popular",      user_articles_popular),
-        ("ground_truth", user_articles_gt),
+        ("random",  user_articles_random),
+        ("popular", user_articles_popular),
     ]
-    if use_nrms:
-        runs.insert(2, ("nrms", user_articles_nrms))
+    runs += [(name, model_paths[name]["map"]) for name in model_recs]
+    runs.append(("ground_truth", user_articles_gt))
 
     cache_file = os.path.join(pred_dir, "diversity_scores.json")
     old_cache = _load_score_cache(cache_file)

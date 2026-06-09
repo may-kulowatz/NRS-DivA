@@ -22,18 +22,21 @@ PREDICTION_FILES = {
     "random":       os.path.join(PRED_DIR, "prediction_random.txt"),
     "popular":      os.path.join(PRED_DIR, "prediction_popular.txt"),
     "nrms":         os.path.join(PRED_DIR, "prediction_nrms.txt"),
+    "lstur":        os.path.join(PRED_DIR, "prediction_lstur.txt"),
 }
 TOPK_FILES = {
     "ground_truth": os.path.join(PRED_DIR, "prediction_ground_truth.txt"),
     "random_topk":  os.path.join(PRED_DIR, "prediction_random_topk.txt"),
     "popular_topk": os.path.join(PRED_DIR, "prediction_popular_topk.txt"),
     "nrms_topk":    os.path.join(PRED_DIR, "prediction_nrms_topk.txt"),
+    "lstur_topk":   os.path.join(PRED_DIR, "prediction_lstur_topk.txt"),
 }
 USER_ARTICLE_FILES = {
     "ground_truth": os.path.join(PRED_DIR, "user_articles_ground_truth.txt"),
     "random":       os.path.join(PRED_DIR, "user_articles_random.txt"),
     "popular":      os.path.join(PRED_DIR, "user_articles_popular.txt"),
     "nrms":         os.path.join(PRED_DIR, "user_articles_nrms.txt"),
+    "lstur":        os.path.join(PRED_DIR, "user_articles_lstur.txt"),
 }
 ALL_FILES = {**PREDICTION_FILES, **TOPK_FILES, **USER_ARTICLE_FILES}
 

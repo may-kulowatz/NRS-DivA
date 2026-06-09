@@ -14,10 +14,10 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from datasets.mind_adapter import load_impressions, load_article_meta
-from recommenders.random_rec import random_recommend
-from recommenders.popular_rec import popular_recommend
-from recommenders.ground_truth import extract_ground_truth, save_ground_truth
-from recommenders.io import save_predictions_topk, save_user_article_map
+from recommender_systems.random_rec import random_recommend
+from recommender_systems.popular_rec import popular_recommend
+from recommender_systems.ground_truth import extract_ground_truth, save_ground_truth
+from recommender_systems.io import save_predictions_topk, save_user_article_map
 
 logger = logging.getLogger(__name__)
 

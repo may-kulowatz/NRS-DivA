@@ -97,6 +97,7 @@ if __name__ == "__main__":
         "random":       os.path.join(pred_dir, "user_articles_random.txt"),
         "popular":      os.path.join(pred_dir, "user_articles_popular.txt"),
         "nrms":         os.path.join(pred_dir, "user_articles_nrms.txt"),
+        "lstur":        os.path.join(pred_dir, "user_articles_lstur.txt"),
         "ground_truth": os.path.join(pred_dir, "user_articles_ground_truth.txt"),
     }
 
