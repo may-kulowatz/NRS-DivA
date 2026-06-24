@@ -12,4 +12,12 @@ __pycache__/
 # Pytest cache
 .pytest_cache/
 
-data/datasets
+data/datasets/mind/MINDsmall_dev
+data/datasets/mind/MINDsmall_train
+data/datasets/mind/model
+data/datasets/mind/utils
+
+data/datasets/ebnerd/__MACOSX
+data/datasets/ebnerd/train
+data/datasets/ebnerd/validation
+data/datasets/ebnerd/articles.parquet
