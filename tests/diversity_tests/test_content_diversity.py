@@ -7,7 +7,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from diversityScores.content_diversity import (
+from diversity_module.content_diversity import (
     content_diversity,
     load_news_embeddings,
     _ild,

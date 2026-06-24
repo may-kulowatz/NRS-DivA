@@ -12,8 +12,4 @@ __pycache__/
 # Pytest cache
 .pytest_cache/
 
-# MIND dataset (large raw data files in MIND)
-data/MIND/MINDsmall_dev
-data/MIND/MINDsmall_train
-data/MIND/utils
-data/MIND/model
+data/datasets

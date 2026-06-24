@@ -1,6 +1,6 @@
 """
 Integration tests for the generated prediction and user-article map files.
-All tests read the real files in data/MIND/predictions/ — no fake data.
+All tests read the real files in data/data_processed/mind/ — no fake data.
 Tests that require file content skip automatically if the files are absent.
 """
 
@@ -15,30 +15,29 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-PRED_DIR     = os.path.join(PROJECT_ROOT, "data", "MIND", "predictions")
+OUT_DIR      = os.path.join(PROJECT_ROOT, "data", "data_processed", "mind")
+PRED_DIR     = os.path.join(OUT_DIR, "predictions")             # full-rank output
+PROC_DIR     = os.path.join(OUT_DIR, "predictions_processed")   # per-user files
 
+# Full-rank recommender output lives in predictions/; ground truth ships already
+# in top-k form, so it sits at the dataset root. The per-user files in
+# PROCESSED_FILES (predictions_processed/) are built straight from the full-rank
+# output — there is no intermediate top-k file on disk.
 PREDICTION_FILES = {
-    "ground_truth": os.path.join(PRED_DIR, "prediction_ground_truth.txt"),
+    "ground_truth": os.path.join(OUT_DIR, "ground_truth.txt"),
     "random":       os.path.join(PRED_DIR, "prediction_random.txt"),
     "popular":      os.path.join(PRED_DIR, "prediction_popular.txt"),
     "nrms":         os.path.join(PRED_DIR, "prediction_nrms.txt"),
     "lstur":        os.path.join(PRED_DIR, "prediction_lstur.txt"),
 }
-TOPK_FILES = {
-    "ground_truth": os.path.join(PRED_DIR, "prediction_ground_truth.txt"),
-    "random_topk":  os.path.join(PRED_DIR, "prediction_random_topk.txt"),
-    "popular_topk": os.path.join(PRED_DIR, "prediction_popular_topk.txt"),
-    "nrms_topk":    os.path.join(PRED_DIR, "prediction_nrms_topk.txt"),
-    "lstur_topk":   os.path.join(PRED_DIR, "prediction_lstur_topk.txt"),
+PROCESSED_FILES = {
+    "ground_truth": os.path.join(PROC_DIR, "processed_ground_truth.txt"),
+    "random":       os.path.join(PROC_DIR, "prediction_processed_random.txt"),
+    "popular":      os.path.join(PROC_DIR, "prediction_processed_popular.txt"),
+    "nrms":         os.path.join(PROC_DIR, "prediction_processed_nrms.txt"),
+    "lstur":        os.path.join(PROC_DIR, "prediction_processed_lstur.txt"),
 }
-USER_ARTICLE_FILES = {
-    "ground_truth": os.path.join(PRED_DIR, "user_articles_ground_truth.txt"),
-    "random":       os.path.join(PRED_DIR, "user_articles_random.txt"),
-    "popular":      os.path.join(PRED_DIR, "user_articles_popular.txt"),
-    "nrms":         os.path.join(PRED_DIR, "user_articles_nrms.txt"),
-    "lstur":        os.path.join(PRED_DIR, "user_articles_lstur.txt"),
-}
-ALL_FILES = {**PREDICTION_FILES, **TOPK_FILES, **USER_ARTICLE_FILES}
+ALL_FILES = {**PREDICTION_FILES, **PROCESSED_FILES}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -101,22 +100,9 @@ def test_prediction_files_have_same_line_count():
     )
 
 
-def test_topk_files_have_same_line_count():
-    skip_if_missing(*TOPK_FILES.values())
-    counts = {name: count_lines(path) for name, path in TOPK_FILES.items()}
-    unique = set(counts.values())
-    assert len(unique) == 1, (
-        f"Top-k files have different line counts: {counts}"
-    )
-    logger.info(
-        "All top-k files have the same line count — expected identical, actual %s",
-        counts
-    )
-
-
 def test_user_article_files_have_same_line_count():
-    skip_if_missing(*USER_ARTICLE_FILES.values())
-    counts = {name: count_lines(path) for name, path in USER_ARTICLE_FILES.items()}
+    skip_if_missing(*PROCESSED_FILES.values())
+    counts = {name: count_lines(path) for name, path in PROCESSED_FILES.items()}
     unique = set(counts.values())
     assert len(unique) == 1, (
         f"User article files have different line counts (user counts): {counts}"
@@ -132,8 +118,8 @@ def test_user_article_files_have_same_line_count():
 # ---------------------------------------------------------------------------
 
 def test_user_articles_same_user_ids():
-    skip_if_missing(*USER_ARTICLE_FILES.values())
-    user_id_sets = {name: set(parse_user_articles(path)) for name, path in USER_ARTICLE_FILES.items()}
+    skip_if_missing(*PROCESSED_FILES.values())
+    user_id_sets = {name: set(parse_user_articles(path)) for name, path in PROCESSED_FILES.items()}
     reference = user_id_sets["ground_truth"]
     for name, uid_set in user_id_sets.items():
         assert uid_set == reference, (
@@ -151,9 +137,9 @@ def test_user_articles_same_user_ids():
 # ---------------------------------------------------------------------------
 
 def test_article_count_per_user_matches_ground_truth():
-    skip_if_missing(*USER_ARTICLE_FILES.values())
-    gt_map = parse_user_articles(USER_ARTICLE_FILES["ground_truth"])
-    for name, path in USER_ARTICLE_FILES.items():
+    skip_if_missing(*PROCESSED_FILES.values())
+    gt_map = parse_user_articles(PROCESSED_FILES["ground_truth"])
+    for name, path in PROCESSED_FILES.items():
         if name == "ground_truth":
             continue
         rec_map = parse_user_articles(path)
@@ -177,8 +163,8 @@ def test_article_count_per_user_matches_ground_truth():
 # ---------------------------------------------------------------------------
 
 def test_user_articles_ids_topics_subtopics_same_length():
-    skip_if_missing(*USER_ARTICLE_FILES.values())
-    for name, path in USER_ARTICLE_FILES.items():
+    skip_if_missing(*PROCESSED_FILES.values())
+    for name, path in PROCESSED_FILES.items():
         for user_id, (ids, topics, subtopics) in parse_user_articles(path).items():
             assert len(ids) == len(topics) == len(subtopics), (
                 f"[{name}] user {user_id}: ids={len(ids)}, topics={len(topics)}, subtopics={len(subtopics)}"
@@ -190,20 +176,55 @@ def test_user_articles_ids_topics_subtopics_same_length():
 
 
 # ---------------------------------------------------------------------------
-# Step 6 — NRMS-specific: topk file must have user IDs (raw file does not)
+# Step 6 — Subtopic news subset (predictions/subtopic/) feeds subtopic diversity
 # ---------------------------------------------------------------------------
 
-def test_nrms_topk_has_user_ids():
-    skip_if_missing(TOPK_FILES["nrms_topk"])
-    with open(TOPK_FILES["nrms_topk"], encoding="utf-8") as f:
-        first_line = f.readline().strip()
-    parts = first_line.split()
-    # topk format: impr_id user_id [positions] [ids] — at least 4 tokens
-    assert len(parts) >= 4, (
-        f"nrms_topk first line has only {len(parts)} token(s); expected impr_id user_id [pos] [ids]"
+SUBTOPIC_DIR = os.path.join(PROC_DIR, "subtopic")
+# Ground truth drops the "prediction_" prefix (it's clicks, not a prediction).
+SUBTOPIC_PROCESSED_FILES = {
+    name: os.path.join(
+        SUBTOPIC_DIR,
+        "processed_ground_truth.txt"
+        if name == "ground_truth"
+        else f"prediction_processed_{name}.txt",
     )
+    for name in ("ground_truth", "random", "popular", "nrms", "lstur")
+}
+DIVERSITY_SCORES_FILE = os.path.join(OUT_DIR, "diversity_scores.json")
+
+
+def test_subtopic_subset_files_parse_and_are_consistent():
+    skip_if_missing(*SUBTOPIC_PROCESSED_FILES.values())
+    for name, path in SUBTOPIC_PROCESSED_FILES.items():
+        for user_id, (ids, topics, subtopics) in parse_user_articles(path).items():
+            assert len(ids) == len(topics) == len(subtopics), (
+                f"[subtopic/{name}] user {user_id}: ids={len(ids)}, "
+                f"topics={len(topics)}, subtopics={len(subtopics)}"
+            )
+            # The subset promotes the subcategory into the topic slot, so the
+            # topic field holds real subcategories and the subtopic field is the
+            # "none" sentinel for every article.
+            assert all(s == "none" for s in subtopics), (
+                f"[subtopic/{name}] user {user_id}: expected all subtopics 'none', got {subtopics}"
+            )
     logger.info(
-        "NRMS topk file contains user IDs — "
-        "expected ≥4 tokens per line, actual first line has %d tokens: %s",
-        len(parts), parts[:4]
+        "Subtopic subset files parse, are length-consistent, and carry subcategories "
+        "in the topic slot — expected 0 inconsistencies, actual 0"
+    )
+
+
+def test_diversity_scores_contains_subtopic_diversity():
+    import json
+    skip_if_missing(DIVERSITY_SCORES_FILE)
+    with open(DIVERSITY_SCORES_FILE, encoding="utf-8") as f:
+        cache = json.load(f)
+    for rec, metrics in cache.items():
+        assert "subtopic_diversity" in metrics, (
+            f"'{rec}' is missing subtopic_diversity in diversity_scores.json"
+        )
+        value = metrics["subtopic_diversity"]["value"]
+        assert 0.0 <= value <= 1.0, f"'{rec}' subtopic_diversity {value} out of [0, 1]"
+    logger.info(
+        "diversity_scores.json has an in-range subtopic_diversity for every recommender — "
+        "expected all present and in [0, 1], actual %d recommenders", len(cache)
     )

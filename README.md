@@ -21,19 +21,20 @@ there are txt files already prepared. The pipeline will skip the prediction and 
 
 ### Datasets
 
-- **MIND** (`data/MIND/`) — Microsoft News Dataset (`MINDsmall`), the primary
+- **MIND** (`data/datasets/mind/`) — Microsoft News Dataset (`MINDsmall`), the primary
   dataset. Provides `news.tsv` (article id, category, subcategory, title) and
   `behaviors.tsv` (user impressions and clicks), plus pre-built embeddings and
   dictionaries in `utils/`.
   For further information on this dataset, please check out the [documentation](https://learn.microsoft.com/en-us/azure/open-datasets/dataset-microsoft-news?tabs=azureml-opendatasets) and the [github repo](https://github.com/msnews/msnews.github.io/blob/master/assets/doc/introduction.md).
-- **eb-nerd** (`data/ebnerd/`) — Ekstra Bladet News Recommendation Dataset
+- **eb-nerd** (`data/datasets/ebnerd/`) — Ekstra Bladet News Recommendation Dataset
   (`articles.parquet`, train/validation splits) used as a second news source.
+  Generated outputs for both datasets live under `data/data_processed/<dataset>/`.
   For further information on this dataset, please check out the [documentation](https://recsys.eb.dk/dataset/).
 
 ### Recommender Systems
 
 Each recommender produces a ranked top-k list per user impression
-(`recommender_systems/`):
+(`recommender_module/`):
 
 - **Ground truth** (`ground_truth.py`) — the articles users actually clicked,
   used as the reference baseline.
@@ -44,12 +45,16 @@ Each recommender produces a ranked top-k list per user impression
 
 ### Diversity Scores
 
-(`diversityScores/`):
+(`diversity_module/`):
 
 - **Topic diversity** (`topic_diversity.py`) — share of unique topics
   (categories) in a user's list.
-- **Subtopic diversity** (`topic_diversity.py`) — share of unique subtopics
-  within a category.
+- **Subtopic diversity** (`topic_diversity.py` + `recommender_module/subtopic.py`)
+  — topic diversity measured on a news-only subset of the dataset: only the
+  parent category's articles are kept (impressions with no news candidate or no
+  news click are dropped), each article's subcategory is promoted into the topic
+  slot, and the *same* recommenders are scored on that subset. Measures variety
+  of subcategories *within* the parent category. MIND only.
 - **Content diversity / ILD** (`content_diversity.py`) — intra-list diversity
   based on the mean pairwise cosine *distance* between article title embeddings.
 
@@ -64,7 +69,6 @@ The pipeline does the following:
 - transfers the results to GUI (still to be implemented)
 
 TODO:
-- fix subtopics implementation
 - explain own recommenders better
 - explain topic diversity better (especially formular)
 - add option to exclude users with less than x clicked articles

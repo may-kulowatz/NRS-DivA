@@ -26,17 +26,21 @@ PRIMARY_GREEN = "#2e7d32"
 
 from pipeline import (
     DATASETS,
+    input_dir,
+    output_dir,
     _compute_run_scores,
     _file_sig,
     _load_score_cache,
     _save_score_cache,
 )
-from diversityScores.topic_diversity import (
+from recommender_module.io import processed_filename
+from recommender_module.subtopic import subtopic_subset_path
+from diversity_module.topic_diversity import (
     topic_diversity,
     subtopic_diversity,
     _parse_user_articles,
 )
-from diversityScores.content_diversity import content_diversity, load_news_embeddings
+from diversity_module.content_diversity import content_diversity, load_news_embeddings
 
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -158,10 +162,10 @@ output for the dataset you selected.
 # ---------------------------------------------------------------------------
 # Score computation (reuses the pipeline's configuration + metric functions)
 # ---------------------------------------------------------------------------
-def _user_articles_path(dataset, recommender):
+def _processed_path(dataset, recommender):
     return os.path.join(
-        _PROJECT_DIR, "data", dataset, "predictions",
-        f"user_articles_{recommender}.txt",
+        output_dir(dataset), "predictions_processed",
+        processed_filename(recommender),
     )
 
 
@@ -169,12 +173,12 @@ def _user_articles_path(dataset, recommender):
 def _get_embeddings(dataset):
     """Load (and cache) the news embeddings a dataset's content diversity needs."""
     cfg = DATASETS[dataset]
-    data_dir = os.path.join(_PROJECT_DIR, "data", dataset)
+    in_dir = input_dir(dataset)
     cd = cfg["content_diversity"]
     return load_news_embeddings(
-        os.path.join(data_dir, *cfg["articles"]),
-        os.path.join(data_dir, *cd["embedding"]),
-        os.path.join(data_dir, *cd["word_dict"]),
+        os.path.join(in_dir, *cfg["articles"]),
+        os.path.join(in_dir, *cd["embedding"]),
+        os.path.join(in_dir, *cd["word_dict"]),
     )
 
 
@@ -182,7 +186,7 @@ def _get_embeddings(dataset):
 def _get_titles(dataset):
     """Load (and cache) {article_id: title} via the dataset's adapter."""
     cfg = DATASETS[dataset]
-    articles_file = os.path.join(_PROJECT_DIR, "data", dataset, *cfg["articles"])
+    articles_file = os.path.join(input_dir(dataset), *cfg["articles"])
     return cfg["adapter"].load_titles(articles_file)
 
 
@@ -206,12 +210,12 @@ _CACHE_KEY = {
 
 def _metric_fn(dataset, metric):
     """Return the metric function fn(path) -> float for the chosen metric."""
-    cfg = DATASETS[dataset]
     if metric == "topic":
         return topic_diversity
     if metric == "subtopic":
-        category = cfg["subtopic_category"]
-        return lambda p: subtopic_diversity(p, category=category)
+        # Subtopic is topic diversity on the news-subset sibling file built by
+        # the pipeline (predictions/subtopic/...).
+        return lambda p: subtopic_diversity(subtopic_subset_path(p))
     if metric == "content":
         return lambda p: content_diversity(p, _get_embeddings(dataset))
     raise ValueError(f"Unknown metric '{metric}'")
@@ -230,7 +234,7 @@ def compute_score(dataset, recommender, metric):
     which case message explains why (and is shown to the user).
     """
     cfg = DATASETS[dataset]
-    path = _user_articles_path(dataset, recommender)
+    path = _processed_path(dataset, recommender)
     if not os.path.exists(path):
         return None, (
             f"No output for '{REC_LABELS[recommender]}' on {DATASET_LABELS[dataset]} yet. "
@@ -240,6 +244,11 @@ def compute_score(dataset, recommender, metric):
         return None, (
             f"Subtopic diversity isn't defined for {DATASET_LABELS[dataset]} — "
             "its subcategories don't map to a parent category."
+        )
+    if metric == "subtopic" and not os.path.exists(subtopic_subset_path(path)):
+        return None, (
+            f"No subtopic subset for '{REC_LABELS[recommender]}' on "
+            f"{DATASET_LABELS[dataset]} yet. Generate it with:  python pipeline.py {dataset}"
         )
     if metric == "content" and cfg["content_diversity"] is None:
         return None, (
@@ -251,9 +260,7 @@ def compute_score(dataset, recommender, metric):
     # input file's signature still matches, and only calls the metric function
     # on a miss.
     key = _CACHE_KEY[metric]
-    cache_file = os.path.join(
-        _PROJECT_DIR, "data", dataset, "predictions", "diversity_scores.json"
-    )
+    cache_file = os.path.join(output_dir(dataset), "diversity_scores.json")
     cache = _load_score_cache(cache_file)
     prev_run = cache.get(recommender, {})
 
@@ -514,7 +521,7 @@ def _articles_for_user(dataset, recommender, kind):
     chosen recommender's map. Returns None when the file doesn't exist yet.
     """
     rec = "ground_truth" if kind == "clicked" else recommender
-    path = _user_articles_path(dataset, rec)
+    path = _processed_path(dataset, rec)
     if not os.path.exists(path):
         return None
     return _parse_user_articles_cached(path, _file_sig(path))

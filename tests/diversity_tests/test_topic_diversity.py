@@ -4,7 +4,9 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from diversityScores.topic_diversity import topic_diversity, subtopic_diversity
+from diversity_module.topic_diversity import topic_diversity, subtopic_diversity
+from recommender_module.subtopic import build_subtopic_subset
+from dataset_module.common import Impression
 
 logger = logging.getLogger(__name__)
 
@@ -154,90 +156,80 @@ def test_topic_diversity_user_with_only_empty_topics_skipped(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# subtopic_diversity
+# build_subtopic_subset — the news-only subset that subtopic diversity scores
+# ---------------------------------------------------------------------------
+# article_meta maps {article_id: (topic, subtopic)}. The subset keeps only the
+# parent-category ("news") articles and promotes each one's subtopic into the
+# topic slot, so topic_diversity on the resulting user-article file measures
+# subcategory variety.
+
+ARTICLE_META = {
+    "N1": ("news", "politics"),
+    "N2": ("news", "world"),
+    "N3": ("news", "politics"),
+    "N4": ("sports", "golf"),
+    "N5": ("finance", "stocks"),
+}
+
+
+def _impr(impr_id, user_id, pairs):
+    """Build an Impression from [(article_id, clicked), ...]."""
+    candidate_ids = [aid for aid, _ in pairs]
+    labels = [c for _, c in pairs]
+    return Impression(impr_id, user_id, "t", candidate_ids, labels)
+
+
+def test_subset_keeps_only_category_articles_with_subtopic_as_topic():
+    impr = _impr(1, "U1", [("N1", 1), ("N4", 1), ("N2", 0)])
+    sub_imps, sub_meta, positions = build_subtopic_subset(
+        [impr], ARTICLE_META, "news"
+    )
+
+    # Only the two news candidates survive, in original order.
+    assert sub_imps[0].candidate_ids == ["N1", "N2"]
+    assert sub_imps[0].labels == [1, 0]
+    assert positions[1] == [0, 2]
+    # subtopic promoted to the topic slot; non-news articles dropped from meta.
+    assert sub_meta == {"N1": ("politics", "none"),
+                        "N2": ("world", "none"),
+                        "N3": ("politics", "none")}
+    logger.info(
+        "Subset keeps only category articles and promotes subtopic to topic — "
+        "candidates %s, meta keys %s", sub_imps[0].candidate_ids, sorted(sub_meta)
+    )
+
+
+def test_subset_drops_impressions_with_no_category_candidates():
+    impr = _impr(1, "U1", [("N4", 1), ("N5", 0)])  # no news candidates
+    sub_imps, _, positions = build_subtopic_subset([impr], ARTICLE_META, "news")
+
+    assert sub_imps == []
+    assert positions == {}
+    logger.info("Impressions with no candidate in the category are dropped — got %d", len(sub_imps))
+
+
+def test_subset_drops_impressions_with_no_category_clicks():
+    # Has a news candidate, but it wasn't clicked → not sensible, dropped.
+    impr = _impr(1, "U1", [("N1", 0), ("N4", 1)])
+    sub_imps, _, _ = build_subtopic_subset([impr], ARTICLE_META, "news")
+
+    assert sub_imps == []
+    logger.info("Impressions with no clicked article in the category are dropped — got %d", len(sub_imps))
+
+
+# ---------------------------------------------------------------------------
+# subtopic_diversity — topic diversity on the subset's user-article file
 # ---------------------------------------------------------------------------
 
-def test_subtopic_diversity_default_category_news(tmp_path):
-    # U1 has 2 news articles with different subtopics → 2/2 = 1.0
+def test_subtopic_diversity_delegates_to_topic_diversity(tmp_path):
+    # On a subset file (topic slot already holds subcategories) subtopic diversity
+    # is exactly topic diversity: 2 unique of 3 → 2/3.
     f = write_user_articles(tmp_path, [
-        "U1 [N1,N2,N3] [news,news,sports] [politics,world,golf]",
+        "U1 [N1,N2,N3] [politics,world,politics] [none,none,none]",
     ])
-    score = subtopic_diversity(f)
-
-    assert abs(score - 1.0) < 1e-9
+    assert abs(subtopic_diversity(f) - topic_diversity(f)) < 1e-12
+    assert abs(subtopic_diversity(f) - 2/3) < 1e-9
     logger.info(
-        "Subtopic diversity defaults to category='news' and counts unique subtopics — "
-        "expected 1.0000, actual %.4f", score
-    )
-
-
-def test_subtopic_diversity_custom_category(tmp_path):
-    # category="sports": U1 has 3 sports articles, 2 unique subtopics → 2/3
-    f = write_user_articles(tmp_path, [
-        "U1 [N1,N2,N3,N4] [sports,news,sports,sports] [golf,politics,golf,tennis]",
-    ])
-    score = subtopic_diversity(f, category="sports")
-
-    assert abs(score - 2/3) < 1e-9
-    logger.info(
-        "Custom category parameter correctly filters to the specified category — "
-        "expected %.4f (sports: golf,golf,tennis → 2/3), actual %.4f", 2/3, score
-    )
-
-
-def test_subtopic_diversity_user_with_no_category_articles_contributes_zero(tmp_path):
-    # U1 has 2 articles but none in "news" → contributes 0.0; U2 has 2 news with 2 unique → 1.0; avg = 0.5
-    f = write_user_articles(tmp_path, [
-        "U1 [N1,N2] [sports,finance] [golf,stocks]",
-        "U2 [N3,N4] [news,news] [politics,world]",
-    ])
-    score = subtopic_diversity(f, category="news")
-
-    assert abs(score - 0.5) < 1e-9
-    logger.info(
-        "User with no articles in the target category contributes 0.0 to the average — "
-        "expected 0.5000 (U1=0.0, U2=1.0), actual %.4f", score
-    )
-
-
-def test_subtopic_diversity_all_same_subtopics(tmp_path):
-    # U1: 3 news articles all "politics" → 1 unique / 3 total = 1/3
-    f = write_user_articles(tmp_path, [
-        "U1 [N1,N2,N3] [news,news,news] [politics,politics,politics]",
-    ])
-    score = subtopic_diversity(f, category="news")
-
-    assert abs(score - 1/3) < 1e-9
-    logger.info(
-        "All same subtopics in the category gives minimum diversity — "
-        "expected %.4f, actual %.4f", 1/3, score
-    )
-
-
-def test_subtopic_diversity_excludes_single_click_users(tmp_path):
-    # U1 has 1 click (excluded); U2 has 2 news articles with 2 unique subtopics → 1.0
-    f = write_user_articles(tmp_path, [
-        "U1 [N1] [news] [politics]",
-        "U2 [N2,N3] [news,news] [politics,world]",
-    ])
-    score = subtopic_diversity(f, category="news")
-
-    assert abs(score - 1.0) < 1e-9
-    logger.info(
-        "Users with only one click overall are excluded from subtopic diversity — "
-        "expected 1.0000 (U1 excluded), actual %.4f", score
-    )
-
-
-def test_subtopic_diversity_score_between_zero_and_one(tmp_path):
-    f = write_user_articles(tmp_path, [
-        "U1 [N1,N2,N3] [news,news,sports] [politics,politics,golf]",
-        "U2 [N4,N5,N6] [news,finance,news] [world,stocks,economy]",
-    ])
-    score = subtopic_diversity(f, category="news")
-
-    assert 0.0 <= score <= 1.0
-    logger.info(
-        "Subtopic diversity score is always in [0, 1] — "
-        "expected range [0.0, 1.0], actual %.4f", score
+        "subtopic_diversity equals topic_diversity on the subset file — "
+        "expected %.4f, actual %.4f", 2/3, subtopic_diversity(f)
     )
