@@ -1,10 +1,6 @@
 """End-to-end pipeline: load a dataset, run the baseline recommenders, write
-prediction / user-article files, and report diversity scores.
+prediction / processed files, and report diversity scores.
 
-The pipeline is dataset-agnostic. A dataset adapter (dataset_module/mind_adapter.py,
-dataset_module/ebnerd_adapter.py) normalizes the raw files into Impression records and
-article metadata; everything downstream is shared. Adding a dataset means
-adding an adapter and a DATASETS entry — no recommender or writer changes.
 """
 
 import json
@@ -14,10 +10,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dataset_module import mind_adapter, ebnerd_adapter
-from recommender_module.ground_truth import extract_ground_truth, save_ground_truth
-from recommender_module.random_rec import random_recommend
-from recommender_module.popular_rec import popular_recommend
-from recommender_module.io import (
+from recommender_module.common.ground_truth import extract_ground_truth, save_ground_truth
+from recommender_module.common.random_rec import random_recommend
+from recommender_module.common.popular_rec import popular_recommend
+from recommender_module.common.io import (
     processed_filename,
     save_predictions,
     save_user_article_map,
@@ -25,7 +21,7 @@ from recommender_module.io import (
     save_user_article_map_from_ranks,
     save_user_article_map_from_ground_truth,
 )
-from recommender_module.subtopic import (
+from recommender_module.common.subtopic import (
     build_subtopic_subset,
     subtopic_subset_path,
 )
@@ -72,16 +68,6 @@ DATASETS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# On-disk layout
-# ---------------------------------------------------------------------------
-# Raw input data and generated outputs live in two parallel trees under data/,
-# each split per dataset by its config "dir":
-#   data/datasets/<dir>/        — raw inputs (behaviors, articles, utils, model)
-#   data/data_processed/<dir>/  — outputs: ground_truth.txt, diversity_scores.json,
-#                                 predictions/ (full-rank), predictions_processed/
-# These helpers are the single source of truth for those roots, shared with the
-# dashboard so the two never disagree.
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_ROOT = os.path.join(_PROJECT_DIR, "data")
 
@@ -258,12 +244,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT):
     # -------------------------------------------------------------------------
     # Step 4 — Processed per-user files (the diversity input)
     # -------------------------------------------------------------------------
-    # Built straight from each recommender's full-rank output (or the ground-truth
-    # file) — the per-impression top-k is computed in memory, never written to
-    # disk. Each file is rebuilt only when its source is newer, so replacing one
-    # recommender's prediction file rebuilds just that one and leaves the others'
-    # cached scores intact. (kind: how to read the source — "gt" parses the
-    # ground-truth file directly, "ranks" reads a full-rank file.)
+
     map_specs = [
         (processed_gt, gt_file, "gt"),
         (processed_random, random_file, "ranks"),
@@ -288,14 +269,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT):
     # -------------------------------------------------------------------------
     # Step 5b — Subtopic news subset
     # -------------------------------------------------------------------------
-    # Subtopic diversity = topic diversity measured on a subset that keeps only
-    # the parent-category articles, with each article's subcategory promoted into
-    # the topic slot (build_subtopic_subset). We rebuild the subset's user-article
-    # files here so the *same* recommenders are scored within the category,
-    # instead of filtering their full output after the fact. Each map is built
-    # straight from the recommender (no top-k file) and gated on its full-pipeline
-    # source so it rebuilds only when that source changed. Skipped for datasets
-    # without a parent category.
+
     subtopic_category = cfg["subtopic_category"]
     if subtopic_category is None:
         print("Step 4b/5 — No subtopic category for this dataset, skipping.")

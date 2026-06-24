@@ -22,9 +22,10 @@ epochs = 2
 seed = 40
 batch_size = 32
 
-_project_dir = os.path.dirname(os.path.abspath(__file__))
+# This script lives in recommender_module/mind_specific/, two levels below root.
+_project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Raw inputs (train/dev splits, utils, model checkpoints) live under datasets/.
-mind_dir = os.path.join(_project_dir, "..", "data", "datasets", "mind")
+mind_dir = os.path.join(_project_dir, "data", "datasets", "mind")
 
 train_news_file = os.path.join(mind_dir, "MINDsmall_train", "news.tsv")
 train_behaviors_file = os.path.join(mind_dir, "MINDsmall_train", "behaviors.tsv")
@@ -76,7 +77,7 @@ model.model.save_weights(os.path.join(model_path, "lstur_ckpt"))
 
 # Output: full-rank predictions live under data_processed/mind/predictions/.
 predictions_dir = os.path.join(
-    _project_dir, "..", "data", "data_processed", "mind", "predictions"
+    _project_dir, "data", "data_processed", "mind", "predictions"
 )
 os.makedirs(predictions_dir, exist_ok=True)
 

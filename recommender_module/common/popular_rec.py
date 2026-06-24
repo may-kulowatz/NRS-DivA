@@ -2,7 +2,7 @@
 
 Scores each candidate by how many clicks it has accumulated in chronologically
 earlier impressions, so no future information leaks into a score. Output writing
-is handled by recommender_module/io.py.
+is handled by recommender_module/common/io.py.
 """
 
 from collections import defaultdict

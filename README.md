@@ -49,7 +49,7 @@ Each recommender produces a ranked top-k list per user impression
 
 - **Topic diversity** (`topic_diversity.py`) — share of unique topics
   (categories) in a user's list.
-- **Subtopic diversity** (`topic_diversity.py` + `recommender_module/subtopic.py`)
+- **Subtopic diversity** (`topic_diversity.py` + `recommender_module/common/subtopic.py`)
   — topic diversity measured on a news-only subset of the dataset: only the
   parent category's articles are kept (impressions with no news candidate or no
   news click are dropped), each article's subcategory is promoted into the topic

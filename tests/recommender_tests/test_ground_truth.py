@@ -5,8 +5,8 @@ import logging
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from dataset_module.mind_adapter import load_impressions, load_article_meta
-from recommender_module.ground_truth import extract_ground_truth, save_ground_truth
-from recommender_module.io import save_user_article_map
+from recommender_module.common.ground_truth import extract_ground_truth, save_ground_truth
+from recommender_module.common.io import save_user_article_map
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 """Random recommender (dataset-agnostic).
 
 Assigns each candidate in an impression a uniform random score. Output writing
-is handled by recommender_module/io.py.
+is handled by recommender_module/common/io.py.
 """
 
 import numpy as np

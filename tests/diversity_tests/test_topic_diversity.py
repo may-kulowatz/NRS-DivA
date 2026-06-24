@@ -5,7 +5,7 @@ import logging
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from diversity_module.topic_diversity import topic_diversity, subtopic_diversity
-from recommender_module.subtopic import build_subtopic_subset
+from recommender_module.common.subtopic import build_subtopic_subset
 from dataset_module.common import Impression
 
 logger = logging.getLogger(__name__)

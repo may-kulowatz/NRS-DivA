@@ -40,7 +40,7 @@ def topic_diversity(user_articles_file):
 def subtopic_diversity(subset_user_articles_file):
     """Subtopic diversity = topic diversity on the news-only subset.
 
-    The subset is built upstream (recommender_module/subtopic.build_subtopic_subset):
+    The subset is built upstream (recommender_module/common/subtopic.build_subtopic_subset):
     only the parent category's articles, with each article's subcategory promoted
     into the topic slot. Measuring topic diversity on it therefore measures the
     variety of subcategories *within* the parent category — subtopic diversity —
@@ -54,7 +54,7 @@ def subtopic_diversity(subset_user_articles_file):
 
 
 if __name__ == "__main__":
-    from recommender_module.subtopic import subtopic_subset_path
+    from recommender_module.common.subtopic import subtopic_subset_path
 
     _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pred_dir = os.path.join(

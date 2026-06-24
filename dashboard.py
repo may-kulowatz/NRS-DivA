@@ -33,8 +33,8 @@ from pipeline import (
     _load_score_cache,
     _save_score_cache,
 )
-from recommender_module.io import processed_filename
-from recommender_module.subtopic import subtopic_subset_path
+from recommender_module.common.io import processed_filename
+from recommender_module.common.subtopic import subtopic_subset_path
 from diversity_module.topic_diversity import (
     topic_diversity,
     subtopic_diversity,
