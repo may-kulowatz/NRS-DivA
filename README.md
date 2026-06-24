@@ -83,4 +83,3 @@ TODO:
 - test the tests
 - clean up the tests
 - add requirements to README (solara for GUI, more stuff for pipeline)
-- Implement MIND_large and ebnerd_large
