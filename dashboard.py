@@ -3,10 +3,13 @@
 A single-page dashboard for exploring the diversity of the baseline
 recommenders across datasets. The user picks a Dataset, a Recommender System and
 a Diversity Score; the Diversity Score section then shows the real score for the
-chosen dataset + recommender. Scores are read from the same
-predictions/diversity_scores.json cache the pipeline writes, and only computed
-(and written back) when the cache has no fresh entry — so the dashboard and the
-pipeline never disagree and expensive metrics aren't recomputed needlessly.
+chosen dataset + recommender.
+
+The dashboard is strictly a *viewer*: it never computes or writes anything. Scores
+are read straight from the diversity_scores.json file the pipeline writes, and the
+example article lists from the pipeline's predictions_processed/ files. If a
+dataset's outputs haven't been generated yet, it shows a message pointing you at
+`python pipeline.py <dataset>`.
 
 Run with:
     solara run dashboard.py
@@ -20,27 +23,21 @@ import solara
 import solara.lab
 from matplotlib.figure import Figure
 
-# App primary color (Material green). Used for the vuetify theme as well as the
-# matplotlib chart and score number, which aren't theme-aware.
+
 PRIMARY_GREEN = "#2e7d32"
 
+# The dashboard only reads what the pipeline produced — it reuses the pipeline's
+# dataset config and path helpers, plus the cache reader, but never the compute
+# or write helpers.
 from pipeline import (
     DATASETS,
     input_dir,
     output_dir,
-    _compute_run_scores,
     _file_sig,
     _load_score_cache,
-    _save_score_cache,
 )
 from recommender_module.common.io import processed_filename
-from recommender_module.common.subtopic import subtopic_subset_path
-from diversity_module.topic_diversity import (
-    topic_diversity,
-    subtopic_diversity,
-    _parse_user_articles,
-)
-from diversity_module.content_diversity import content_diversity, load_news_embeddings
+from diversity_module.topic_diversity import _parse_user_articles
 
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -50,7 +47,6 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------------------
 DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD"}
 
-# Recommenders available per dataset (eb-nerd ships no model predictions).
 RECOMMENDERS = {
     "MIND": ["random", "popular", "nrms", "lstur", "ground_truth"],
     "ebnerd": ["random", "popular", "ground_truth"],
@@ -70,10 +66,6 @@ METRIC_LABELS = {
     "content": "Content diversity (ILD)",
 }
 
-
-# ---------------------------------------------------------------------------
-# Explanatory copy shown for each dataset / recommender / metric choice
-# ---------------------------------------------------------------------------
 DATASET_TEXT = {
     "MIND": (
         "**MIND** (Microsoft News Dataset) — English news from *Microsoft News*. "
@@ -150,35 +142,22 @@ INTRO_MD = """
 # EchoBench
 
 Welcome to **EchoBench**, a small workbench for comparing how *diverse* the
-recommendations of different baseline recommender systems are, across different
+recommendations of different recommender systems are, across different
 news datasets.
 
 Use the controls below to pick a **dataset**, a **recommender system** and a
-**diversity score**. The diversity score is computed live from the recommender's
+**diversity score**. The diversity score is computed from the recommender's
 output for the dataset you selected.
 """
 
 
 # ---------------------------------------------------------------------------
-# Score computation (reuses the pipeline's configuration + metric functions)
+# Reading the pipeline's outputs (scores + per-user files). Read-only.
 # ---------------------------------------------------------------------------
 def _processed_path(dataset, recommender):
     return os.path.join(
         output_dir(dataset), "predictions_processed",
         processed_filename(recommender),
-    )
-
-
-@functools.lru_cache(maxsize=None)
-def _get_embeddings(dataset):
-    """Load (and cache) the news embeddings a dataset's content diversity needs."""
-    cfg = DATASETS[dataset]
-    in_dir = input_dir(dataset)
-    cd = cfg["content_diversity"]
-    return load_news_embeddings(
-        os.path.join(in_dir, *cfg["articles"]),
-        os.path.join(in_dir, *cd["embedding"]),
-        os.path.join(in_dir, *cd["word_dict"]),
     )
 
 
@@ -208,47 +187,21 @@ _CACHE_KEY = {
 }
 
 
-def _metric_fn(dataset, metric):
-    """Return the metric function fn(path) -> float for the chosen metric."""
-    if metric == "topic":
-        return topic_diversity
-    if metric == "subtopic":
-        # Subtopic is topic diversity on the news-subset sibling file built by
-        # the pipeline (predictions/subtopic/...).
-        return lambda p: subtopic_diversity(subtopic_subset_path(p))
-    if metric == "content":
-        return lambda p: content_diversity(p, _get_embeddings(dataset))
-    raise ValueError(f"Unknown metric '{metric}'")
+def read_score(dataset, recommender, metric):
+    """Return (value, message) for one (dataset, recommender, metric).
 
-
-def compute_score(dataset, recommender, metric):
-    """Return (value, message).
-
-    The score is read from the shared predictions/diversity_scores.json cache
-    written by the pipeline. It is only recomputed if the cache has no entry for
-    this (recommender, metric) or the cached entry is stale (the recommender's
-    user-article file changed since it was cached); a freshly computed score is
-    written back so both the dashboard and the pipeline stay in sync.
-
-    value is the float diversity score, or None when it can't be computed — in
-    which case message explains why (and is shown to the user).
+    Read-only: the score is looked up in the diversity_scores.json file the
+    pipeline writes. The dashboard never computes or stores anything — if the
+    score isn't there yet, it returns a message telling the user to run the
+    pipeline. value is the float score, or None (with a message) otherwise.
     """
     cfg = DATASETS[dataset]
-    path = _processed_path(dataset, recommender)
-    if not os.path.exists(path):
-        return None, (
-            f"No output for '{REC_LABELS[recommender]}' on {DATASET_LABELS[dataset]} yet. "
-            f"Generate it with:  python pipeline.py {dataset}"
-        )
+    # Metrics that simply don't apply to a dataset get an explanatory message,
+    # not a "run the pipeline" one — running it wouldn't produce them.
     if metric == "subtopic" and cfg["subtopic_category"] is None:
         return None, (
             f"Subtopic diversity isn't defined for {DATASET_LABELS[dataset]} — "
             "its subcategories don't map to a parent category."
-        )
-    if metric == "subtopic" and not os.path.exists(subtopic_subset_path(path)):
-        return None, (
-            f"No subtopic subset for '{REC_LABELS[recommender]}' on "
-            f"{DATASET_LABELS[dataset]} yet. Generate it with:  python pipeline.py {dataset}"
         )
     if metric == "content" and cfg["content_diversity"] is None:
         return None, (
@@ -256,25 +209,19 @@ def compute_score(dataset, recommender, metric):
             "no article embeddings are shipped for this dataset."
         )
 
-    # Reuse the pipeline's cache logic: it returns the cached value when the
-    # input file's signature still matches, and only calls the metric function
-    # on a miss.
-    key = _CACHE_KEY[metric]
-    cache_file = os.path.join(output_dir(dataset), "diversity_scores.json")
-    cache = _load_score_cache(cache_file)
-    prev_run = cache.get(recommender, {})
-
-    scores, run_cache, n_computed = _compute_run_scores(
-        path, [(key, _metric_fn(dataset, metric))], prev_run
+    not_generated = (
+        f"No {METRIC_LABELS[metric].lower()} for '{REC_LABELS[recommender]}' on "
+        f"{DATASET_LABELS[dataset]} yet. Generate it with:  python pipeline.py {dataset}"
     )
+    cache_file = os.path.join(output_dir(dataset), "diversity_scores.json")
+    if not os.path.exists(cache_file):
+        return None, not_generated
 
-    if n_computed:
-        # Persist the freshly computed score without dropping other cached
-        # metrics already stored for this recommender.
-        cache[recommender] = {**prev_run, **run_cache}
-        _save_score_cache(cache_file, cache)
-
-    return scores[key], None
+    cache = _load_score_cache(cache_file)
+    entry = cache.get(recommender, {}).get(_CACHE_KEY[metric])
+    if entry is None:
+        return None, not_generated
+    return entry["value"], None
 
 
 # ---------------------------------------------------------------------------
@@ -320,50 +267,58 @@ def Page():
     solara.lab.theme.themes.light.primary = PRIMARY_GREEN
     solara.lab.theme.themes.dark.primary = PRIMARY_GREEN
 
-    with solara.Column(style={"max-width": "860px", "margin": "0 auto", "padding": "24px"}):
+    with solara.Column(style={"max-width": "1400px", "margin": "0 auto", "padding": "24px"}):
         solara.Markdown(INTRO_MD)
 
-        # Each section is a foldable panel (open by default, click the header to
-        # collapse). The current selection is shown in the header so it stays
-        # visible even when the panel is collapsed.
-        with solara.Details(f"Dataset  ·  {DATASET_LABELS[dataset.value]}", expand=True):
+        # Two columns: the controls (Dataset / Recommender / Diversity Score) on
+        # the left, the visualization next to them on the right. Solara stacks
+        # them automatically on narrow screens.
+        with solara.Columns([1, 1]):
+            # --- Left column: controls ---------------------------------------
+            # Each section is a foldable panel (open by default, click the header
+            # to collapse). The current selection is shown in the header so it
+            # stays visible even when the panel is collapsed.
             with solara.Column():
-                PillGroup(list(DATASETS.keys()), dataset.value, DATASET_LABELS, select_dataset)
-                solara.Markdown(DATASET_TEXT[dataset.value])
+                with solara.Details(f"Dataset  ·  {DATASET_LABELS[dataset.value]}", expand=True):
+                    with solara.Column():
+                        PillGroup(list(DATASETS.keys()), dataset.value, DATASET_LABELS, select_dataset)
+                        solara.Markdown(DATASET_TEXT[dataset.value])
 
-        with solara.Details(
-            f"Recommender System  ·  {REC_LABELS[recommender.value]}", expand=True
-        ):
+                with solara.Details(
+                    f"Recommender System  ·  {REC_LABELS[recommender.value]}", expand=True
+                ):
+                    with solara.Column():
+                        PillGroup(
+                            RECOMMENDERS[dataset.value], recommender.value, REC_LABELS, recommender.set
+                        )
+                        solara.Markdown(RECOMMENDER_TEXT[recommender.value])
+
+                with solara.Details(
+                    f"Diversity Score  ·  {METRIC_LABELS[metric.value]}", expand=True
+                ):
+                    with solara.Column():
+                        PillGroup(METRICS, metric.value, METRIC_LABELS, metric.set)
+                        solara.Markdown(METRIC_TEXT[metric.value])
+                        value, message = read_score(dataset.value, recommender.value, metric.value)
+                        ScoreCard(value, message)
+
+            # --- Right column: visualization ---------------------------------
             with solara.Column():
-                PillGroup(
-                    RECOMMENDERS[dataset.value], recommender.value, REC_LABELS, recommender.set
-                )
-                solara.Markdown(RECOMMENDER_TEXT[recommender.value])
+                with solara.Details("Visualization and Examples", expand=True):
+                    with solara.Column():
+                        solara.Markdown(
+                            f"How the recommenders compare on **{METRIC_LABELS[metric.value]}** for "
+                            f"**{DATASET_LABELS[dataset.value]}**. Your selected recommender "
+                            f"(**{REC_LABELS[recommender.value]}**) is highlighted."
+                        )
+                        ComparisonChart(dataset.value, recommender.value, metric.value)
 
-        with solara.Details(
-            f"Diversity Score  ·  {METRIC_LABELS[metric.value]}", expand=True
-        ):
-            with solara.Column():
-                PillGroup(METRICS, metric.value, METRIC_LABELS, metric.set)
-                solara.Markdown(METRIC_TEXT[metric.value])
-                value, message = compute_score(dataset.value, recommender.value, metric.value)
-                ScoreCard(value, message)
-
-        with solara.Details("Visualization and Examples", expand=True):
-            with solara.Column():
-                solara.Markdown(
-                    f"How the recommenders compare on **{METRIC_LABELS[metric.value]}** for "
-                    f"**{DATASET_LABELS[dataset.value]}**. Your selected recommender "
-                    f"(**{REC_LABELS[recommender.value]}**) is highlighted."
-                )
-                ComparisonChart(dataset.value, recommender.value, metric.value)
-
-                solara.Markdown(
-                    "### Example — a random user\n"
-                    "The articles this user actually clicked, next to what "
-                    f"**{REC_LABELS[recommender.value]}** would have recommended them."
-                )
-                ExamplesPanel(dataset.value, recommender.value, metric.value)
+                        solara.Markdown(
+                            "### Example — a random user\n"
+                            "The articles this user actually clicked, next to what "
+                            f"**{REC_LABELS[recommender.value]}** would have recommended them."
+                        )
+                        ExamplesPanel(dataset.value, recommender.value, metric.value)
 
 
 @solara.component
@@ -399,11 +354,12 @@ _ALERT = {"warning": solara.Warning, "info": solara.Info, "success": solara.Succ
 def scores_for_all_recommenders(dataset, metric):
     """Return {recommender: value} for every recommender that has this metric.
 
-    Reuses compute_score (and therefore the JSON cache), so this is cheap.
+    Reads from the diversity_scores.json cache via read_score, so this is cheap
+    and recommenders the pipeline hasn't scored yet are simply omitted.
     """
     result = {}
     for rec in RECOMMENDERS[dataset]:
-        value, _ = compute_score(dataset, rec, metric)
+        value, _ = read_score(dataset, rec, metric)
         if value is not None:
             result[rec] = value
     return result
