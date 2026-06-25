@@ -1,0 +1,91 @@
+# `diversity_module`
+
+Diversity metrics. Each function scores how varied a recommender's per-user
+article lists are, reading the **processed user-article files** produced by the
+pipeline (via `recommender_module/common/io.py`). All metrics share the same
+shape: average a per-user score across users, counting only users with **more
+than one click**, and return `0.0` when no user qualifies.
+
+```
+topic_diversity.py     topic diversity + subtopic diversity (category-share metrics)
+content_diversity.py   content diversity / intra-list diversity (ILD, embedding-based)
+```
+
+### The user-article file format (shared input)
+Every metric consumes a whitespace-delimited file with one line per user:
+
+```
+{user_id} [id,id,...] [topic,topic,...] [subtopic,subtopic,...]
+```
+
+The three bracketed lists are positionally aligned per article. A topic field
+may itself be a `"|"`-separated group of topics (eb-nerd multi-topic articles);
+the sentinel `"none"` marks "no topic". Parsing is done by the private
+`_parse_user_articles`, which `content_diversity.py` reuses.
+
+---
+
+## `topic_diversity.py`
+
+### `topic_diversity(user_articles_file)`
+Average of `unique topics / total topic assignments` across qualifying users.
+- **Pre:** `user_articles_file` exists and follows the format above. Topics may
+  be `"|"`-grouped; `"none"` marks an untopiced article.
+- **Post:** returns a `float` in `[0.0, 1.0]`.
+  - Users with `≤ 1` clicked article are skipped.
+  - Each article's topics are flattened; `"none"` entries are dropped from both
+    the unique count and the total.
+  - A user left with no topics after filtering is skipped.
+  - Returns `0.0` when no user qualifies. For single-topic datasets (MIND) this
+    reduces to `unique topics / number of articles`.
+
+### `subtopic_diversity(subset_user_articles_file)`
+Topic diversity measured on the **news-only subset** (built upstream by
+`recommender_module/common/subtopic.build_subtopic_subset`, where each article's
+subcategory has been promoted into the topic slot).
+- **Pre:** `subset_user_articles_file` is a user-article file for the subset —
+  i.e. restricted to the parent category, with subcategories in the topic slot.
+  Only meaningful when subcategories nest under a parent category (MIND); the
+  pipeline does not build a subset (and so does not call this) for eb-nerd.
+- **Post:** identical contract to `topic_diversity` (same formula and filtering);
+  the returned `float` is the subcategory variety within the parent category.
+
+> Running this file directly (`__main__`) prints topic/subtopic diversity for
+> the MIND random / popular / ground-truth processed files, if present.
+
+---
+
+## `content_diversity.py`
+
+Intra-list diversity based on the mean pairwise cosine **distance** between
+article-title embeddings. **Requires `numpy`**, plus precomputed MIND word
+embeddings (`embedding.npy`) and `word_dict.pkl` (gitignored; fetched on demand
+by `recommender_module/mind_specific/prepare.py`). MIND only.
+
+### `load_news_embeddings(news_file, embedding_file, word_dict_file)`
+Builds the `{news_id: vector}` map each title is represented by.
+- **Pre:**
+  - `news_file` is a MIND `news.tsv` (id in col 1, title in col 4).
+  - `embedding_file` is the `.npy` word-embedding matrix.
+  - `word_dict_file` is the pickled `{word: row_index}` dict built with the
+    **same** tokenizer used here (Microsoft Recommenders `word_tokenize`), so
+    token→embedding lookups line up.
+- **Post:** returns `{news_id: np.ndarray}` where each vector is the **mean** of
+  its title words' embeddings. Rows with `< 4` columns and articles whose title
+  has **no known word** are omitted (they have no content vector).
+
+### `content_diversity(user_articles_file, news_embeddings)`
+- **Pre:** `user_articles_file` follows the shared format; `news_embeddings` is
+  the mapping from `load_news_embeddings`. (Pass the same object across calls —
+  building it is expensive; the pipeline caches it per run.)
+- **Post:** returns a `float`. For each user: ILD `= 1 - mean pairwise cosine
+  similarity` over that user's embeddable articles.
+  - Users with `≤ 1` clicked article are skipped.
+  - Only articles present in `news_embeddings` contribute; users left with
+    `< 2` embeddable articles are skipped.
+  - Returns `0.0` when no user qualifies. Zero-norm vectors are guarded against
+    division-by-zero in the cosine computation.
+
+> Running this file directly (`__main__`) loads the MIND dev embeddings and
+> prints content diversity for the random / popular / nrms / lstur / ground-truth
+> processed files.
