@@ -17,6 +17,9 @@ data/datasets/mind/MINDsmall_train
 data/datasets/mind/model
 data/datasets/mind/utils
 
+# mind_news is derived from the MIND splits by prepare_mind_news.py
+data/datasets/mind_news
+
 data/datasets/ebnerd/__MACOSX
 data/datasets/ebnerd/train
 data/datasets/ebnerd/validation

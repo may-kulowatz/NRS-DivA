@@ -223,8 +223,7 @@ def parse_user_map_line(line):
     user_id = parts[0]
     ids = parts[1][1:-1].split(",") if parts[1][1:-1] else []
     topics = parts[2][1:-1].split(",") if parts[2][1:-1] else []
-    subtopics = parts[3][1:-1].split(",") if parts[3][1:-1] else []
-    return user_id, ids, topics, subtopics
+    return user_id, ids, topics
 
 
 def test_user_map_groups_articles_by_user(tmp_path):
@@ -238,7 +237,7 @@ def test_user_map_groups_articles_by_user(tmp_path):
     save_user_article_map(topk, meta, output)
 
     lines = open(output).readlines()
-    user_id, ids, _, _ = parse_user_map_line(lines[0])
+    user_id, ids, _ = parse_user_map_line(lines[0])
     assert user_id == "U1"
     assert ids == ["N1", "N2"]
     logger.info(
@@ -255,28 +254,12 @@ def test_user_map_correct_topics(tmp_path):
 
     save_user_article_map(topk, meta, output)
 
-    _, _, topics, _ = parse_user_map_line(open(output).readline())
+    _, _, topics = parse_user_map_line(open(output).readline())
     assert topics == ["sports", "finance"]
     logger.info(
         "Article topics are correctly looked up from article metadata — "
         "expected ['sports', 'finance'], actual %s",
         topics
-    )
-
-
-def test_user_map_correct_subtopics(tmp_path):
-    topk = write_topk(tmp_path, ["1 U1 [1,2] [N1,N2]"])
-    meta = write_news(tmp_path, [("N1", "sports", "golf"), ("N2", "finance", "investing")])
-    output = str(tmp_path / "out.txt")
-
-    save_user_article_map(topk, meta, output)
-
-    _, _, _, subtopics = parse_user_map_line(open(output).readline())
-    assert subtopics == ["golf", "investing"]
-    logger.info(
-        "Article subcategories are correctly looked up from article metadata — "
-        "expected ['golf', 'investing'], actual %s",
-        subtopics
     )
 
 

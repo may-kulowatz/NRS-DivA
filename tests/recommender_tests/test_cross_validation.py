@@ -94,7 +94,7 @@ def generated_files(tmp_path_factory):
 # ---------------------------------------------------------------------------
 
 def parse_map_file(path):
-    """Return {user_id: (ids, topics, subtopics)} for every line in a map file."""
+    """Return {user_id: (ids, topics)} for every line in a map file."""
     result = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -102,8 +102,7 @@ def parse_map_file(path):
             user_id   = parts[0]
             ids       = parts[1][1:-1].split(",") if parts[1][1:-1] else []
             topics    = parts[2][1:-1].split(",") if parts[2][1:-1] else []
-            subtopics = parts[3][1:-1].split(",") if parts[3][1:-1] else []
-            result[user_id] = (ids, topics, subtopics)
+            result[user_id] = (ids, topics)
     return result
 
 
@@ -138,7 +137,7 @@ def test_article_count_per_user_matches_ground_truth(generated_files):
     popular_map = parse_map_file(generated_files["popular_map"])
     gt_map      = parse_map_file(generated_files["gt_map"])
 
-    for user_id, (gt_ids, _, _) in gt_map.items():
+    for user_id, (gt_ids, _) in gt_map.items():
         random_count  = len(random_map[user_id][0])
         popular_count = len(popular_map[user_id][0])
         expected      = len(gt_ids)
@@ -151,18 +150,18 @@ def test_article_count_per_user_matches_ground_truth(generated_files):
         )
 
 
-def test_ids_topics_subtopics_same_length_in_all_files(generated_files):
+def test_ids_topics_same_length_in_all_files(generated_files):
     for label, path in [
         ("random",       generated_files["random_map"]),
         ("popular",      generated_files["popular_map"]),
         ("ground_truth", generated_files["gt_map"]),
     ]:
-        for user_id, (ids, topics, subtopics) in parse_map_file(path).items():
-            assert len(ids) == len(topics) == len(subtopics)
+        for user_id, (ids, topics) in parse_map_file(path).items():
+            assert len(ids) == len(topics)
             logger.info(
-                "%s — %s: article IDs, topics, and subtopics all have the same length — "
-                "expected equal lengths, actual ids=%d, topics=%d, subtopics=%d",
-                label, user_id, len(ids), len(topics), len(subtopics)
+                "%s — %s: article IDs and topics have the same length — "
+                "expected equal lengths, actual ids=%d, topics=%d",
+                label, user_id, len(ids), len(topics)
             )
 
 
@@ -174,7 +173,7 @@ def test_all_article_ids_exist_in_news(generated_files):
         ("popular",      generated_files["popular_map"]),
         ("ground_truth", generated_files["gt_map"]),
     ]:
-        for user_id, (ids, _, _) in parse_map_file(path).items():
+        for user_id, (ids, _) in parse_map_file(path).items():
             unknown = [a for a in ids if a not in valid_ids]
             assert unknown == []
             logger.info(
@@ -184,38 +183,19 @@ def test_all_article_ids_exist_in_news(generated_files):
             )
 
 
-def test_no_empty_topics_or_subtopics(generated_files):
+def test_no_empty_topics(generated_files):
     for label, path in [
         ("random",       generated_files["random_map"]),
         ("popular",      generated_files["popular_map"]),
         ("ground_truth", generated_files["gt_map"]),
     ]:
-        for user_id, (_, topics, subtopics) in parse_map_file(path).items():
+        for user_id, (_, topics) in parse_map_file(path).items():
             assert all(t != "" for t in topics)
-            assert all(s != "" for s in subtopics)
             logger.info(
-                "%s — %s: no empty topic or subtopic strings — "
-                "expected all non-empty, actual topics=%s, subtopics=%s",
-                label, user_id, topics, subtopics
+                "%s — %s: no empty topic strings — "
+                "expected all non-empty, actual topics=%s",
+                label, user_id, topics
             )
-
-
-def test_missing_subcategory_written_as_none(generated_files):
-    # N9 has an empty subcategory in news.tsv; wherever it appears it must show "none".
-    for label, path in [
-        ("random",       generated_files["random_map"]),
-        ("popular",      generated_files["popular_map"]),
-        ("ground_truth", generated_files["gt_map"]),
-    ]:
-        for user_id, (ids, _, subtopics) in parse_map_file(path).items():
-            for article_id, subtopic in zip(ids, subtopics):
-                if article_id == "N9":
-                    assert subtopic == "none"
-                    logger.info(
-                        "%s — %s: N9 has empty subcategory in news.tsv — "
-                        "expected 'none', actual '%s'",
-                        label, user_id, subtopic
-                    )
 
 
 def test_users_with_no_clicks_absent_from_all_files(generated_files):

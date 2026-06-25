@@ -7,7 +7,7 @@ shape: average a per-user score across users, counting only users with **more
 than one click**, and return `0.0` when no user qualifies.
 
 ```
-topic_diversity.py     topic diversity + subtopic diversity (category-share metrics)
+topic_diversity.py     topic diversity (category-share metric)
 content_diversity.py   content diversity / intra-list diversity (ILD, embedding-based)
 ```
 
@@ -15,10 +15,10 @@ content_diversity.py   content diversity / intra-list diversity (ILD, embedding-
 Every metric consumes a whitespace-delimited file with one line per user:
 
 ```
-{user_id} [id,id,...] [topic,topic,...] [subtopic,subtopic,...]
+{user_id} [id,id,...] [topic,topic,...]
 ```
 
-The three bracketed lists are positionally aligned per article. A topic field
+The two bracketed lists are positionally aligned per article. A topic field
 may itself be a `"|"`-separated group of topics (eb-nerd multi-topic articles);
 the sentinel `"none"` marks "no topic". Parsing is done by the private
 `_parse_user_articles`, which `content_diversity.py` reuses.
@@ -39,19 +39,8 @@ Average of `unique topics / total topic assignments` across qualifying users.
   - Returns `0.0` when no user qualifies. For single-topic datasets (MIND) this
     reduces to `unique topics / number of articles`.
 
-### `subtopic_diversity(subset_user_articles_file)`
-Topic diversity measured on the **news-only subset** (built upstream by
-`recommender_module/common/subtopic.build_subtopic_subset`, where each article's
-subcategory has been promoted into the topic slot).
-- **Pre:** `subset_user_articles_file` is a user-article file for the subset —
-  i.e. restricted to the parent category, with subcategories in the topic slot.
-  Only meaningful when subcategories nest under a parent category (MIND); the
-  pipeline does not build a subset (and so does not call this) for eb-nerd.
-- **Post:** identical contract to `topic_diversity` (same formula and filtering);
-  the returned `float` is the subcategory variety within the parent category.
-
-> Running this file directly (`__main__`) prints topic/subtopic diversity for
-> the MIND random / popular / ground-truth processed files, if present.
+> Running this file directly (`__main__`) prints topic diversity for the MIND
+> random / popular / ground-truth processed files, if present.
 
 ---
 

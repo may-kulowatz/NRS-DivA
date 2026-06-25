@@ -61,6 +61,12 @@ def ensure_raw_data(dataset, in_dir):
     if dataset == "ebnerd":
         _require_ebnerd_inputs(in_dir)
         return False
+    if dataset == "mind_news":
+        # mind_news is a derived dataset: build its splits from the MIND data.
+        # Imported lazily to avoid an import cycle (prepare_mind_news calls back
+        # into ensure_raw_data to fetch the source MIND split).
+        from prepare_mind_news import ensure_mind_news
+        return ensure_mind_news(in_dir)
     raise ValueError(f"Unknown dataset {dataset!r}")
 
 

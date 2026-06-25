@@ -45,11 +45,12 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------------------
 # Options + display labels
 # ---------------------------------------------------------------------------
-DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD"}
+DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD", "mind_news": "MIND-News"}
 
 RECOMMENDERS = {
     "MIND": ["random", "popular", "nrms", "lstur", "ground_truth"],
     "ebnerd": ["random", "popular", "ground_truth"],
+    "mind_news": ["random", "popular", "nrms", "lstur", "ground_truth"],
 }
 REC_LABELS = {
     "random": "Random",
@@ -59,10 +60,9 @@ REC_LABELS = {
     "ground_truth": "Ground truth",
 }
 
-METRICS = ["topic", "subtopic", "content"]
+METRICS = ["topic", "content"]
 METRIC_LABELS = {
     "topic": "Topic diversity",
-    "subtopic": "Subtopic diversity",
     "content": "Content diversity (ILD)",
 }
 
@@ -79,8 +79,17 @@ DATASET_TEXT = {
         "the tabloid *Ekstra Bladet*. Each impression lists the articles in view "
         "and which were clicked. Articles carry one **category** plus several "
         "free-text **topics**, along with richer signals (full body text, read "
-        "time, sentiment). Its subcategories are opaque numeric codes with no "
-        "parent category, so only topic diversity is computed for it."
+        "time, sentiment). No article embeddings are shipped for it, so only topic "
+        "diversity is computed."
+    ),
+    "mind_news": (
+        "**MIND-News** — a news-only slice of MIND. It keeps only impressions in "
+        "which the user clicked at least one article in the **news** category and "
+        "that showed at least two news candidates; every non-news article is "
+        "removed from the candidates and the user's history. It is built from the "
+        "MIND splits by `prepare_mind_news.py`. Because every article is in the "
+        "*news* category, topic diversity here is measured over the news "
+        "**subcategories** instead."
     ),
 }
 
@@ -100,14 +109,14 @@ RECOMMENDER_TEXT = {
         "**NRMS** — a neural recommender (*Neural News Recommendation with "
         "Multi-Head Self-Attention*). It builds a user representation from the "
         "articles in their history and scores each candidate by predicted "
-        "relevance. Pre-computed predictions ship with MIND only."
+        "relevance. Available for the MIND-based datasets (MIND, MIND-News)."
     ),
     "lstur": (
         "**LSTUR** — a neural recommender (*Neural News Recommendation with "
         "Long- and Short-term User Representations*). It combines a long-term "
         "user embedding with a short-term interest built from the user's recent "
         "reading history, then scores each candidate by predicted relevance. "
-        "Pre-computed predictions ship with MIND only."
+        "Available for the MIND-based datasets (MIND, MIND-News)."
     ),
     "ground_truth": (
         "**Ground truth** — not a recommender but the reference point: the articles "
@@ -123,12 +132,6 @@ METRIC_TEXT = {
         "with more than one click. 1.0 means every article has a different topic; "
         "low means many share the same one. *Topic* = the article's category "
         "(MIND) or its set of topic labels (EB-NeRD)."
-    ),
-    "subtopic": (
-        "**Subtopic diversity** — the same idea one level finer: within a parent "
-        "category (here *news* for MIND), the share of distinct subcategories. It "
-        "captures variety *inside* a single topic. Defined for MIND only — "
-        "EB-NeRD's subcategory codes don't map to a parent category."
     ),
     "content": (
         "**Content diversity (ILD)** — *intra-list diversity*: 1 minus the average "
@@ -171,7 +174,7 @@ def _get_titles(dataset):
 
 @functools.lru_cache(maxsize=None)
 def _parse_user_articles_cached(path, sig):
-    """Parse a user_articles file into {user: (ids, topics, subtopics)}.
+    """Parse a user_articles file into {user: (ids, topics)}.
 
     Cached on the file's change-signature so repeated dashboard renders don't
     re-read the (potentially large) file; a changed file invalidates the entry.
@@ -182,7 +185,6 @@ def _parse_user_articles_cached(path, sig):
 # Dashboard metric name -> the key used in predictions/diversity_scores.json.
 _CACHE_KEY = {
     "topic": "topic_diversity",
-    "subtopic": "subtopic_diversity",
     "content": "content_diversity",
 }
 
@@ -198,11 +200,6 @@ def read_score(dataset, recommender, metric):
     cfg = DATASETS[dataset]
     # Metrics that simply don't apply to a dataset get an explanatory message,
     # not a "run the pipeline" one — running it wouldn't produce them.
-    if metric == "subtopic" and cfg["subtopic_category"] is None:
-        return None, (
-            f"Subtopic diversity isn't defined for {DATASET_LABELS[dataset]} — "
-            "its subcategories don't map to a parent category."
-        )
     if metric == "content" and cfg["content_diversity"] is None:
         return None, (
             f"Content diversity isn't available for {DATASET_LABELS[dataset]} — "
@@ -318,7 +315,7 @@ def Page():
                             "The articles this user actually clicked, next to what "
                             f"**{REC_LABELS[recommender.value]}** would have recommended them."
                         )
-                        ExamplesPanel(dataset.value, recommender.value, metric.value)
+                        ExamplesPanel(dataset.value, recommender.value)
 
 
 @solara.component
@@ -471,7 +468,7 @@ def _fmt_topic(topic):
 
 
 def _articles_for_user(dataset, recommender, kind):
-    """Return {user: (ids, topics, subtopics)} for kind 'clicked' or 'recommended'.
+    """Return {user: (ids, topics)} for kind 'clicked' or 'recommended'.
 
     'clicked' reads the ground-truth user-article map; 'recommended' reads the
     chosen recommender's map. Returns None when the file doesn't exist yet.
@@ -484,32 +481,20 @@ def _articles_for_user(dataset, recommender, kind):
 
 
 @solara.component
-def ArticleList(title, ids, topics, subtopics, titles, show_subtopic, category):
+def ArticleList(title, ids, topics, titles):
     with solara.Card(title, style={"height": "100%"}):
         with solara.Column(gap="4px"):
-            for aid, topic, subtopic in zip(ids, topics, subtopics):
+            for aid, topic in zip(ids, topics):
                 name = titles.get(aid) or f"(article {aid})"
                 if len(name) > 80:
                     name = name[:80] + "…"
-                # topic always; subtopic only when subtopic diversity is selected.
-                bits = []
                 tp = _fmt_topic(topic)
-                if tp:
-                    bits.append(tp)
-                if show_subtopic:
-                    st = _fmt_topic(subtopic)
-                    if st:
-                        bits.append(st)
-                suffix = f"  ·  _{' › '.join(bits)}_" if bits else ""
-                # When subtopic diversity is selected, the articles it actually
-                # considers are those in the parent category — mark them in bold.
-                considered = show_subtopic and category is not None and topic == category
-                name_md = f"**{name}**" if considered else name
-                solara.Markdown(f"- {name_md}{suffix}")
+                suffix = f"  ·  _{tp}_" if tp else ""
+                solara.Markdown(f"- {name}{suffix}")
 
 
 @solara.component
-def ExamplesPanel(dataset, recommender, metric):
+def ExamplesPanel(dataset, recommender):
     clicked_map = _articles_for_user(dataset, recommender, "clicked")
     rec_map = _articles_for_user(dataset, recommender, "recommended")
 
@@ -529,11 +514,8 @@ def ExamplesPanel(dataset, recommender, metric):
         return
 
     titles = _get_titles(dataset)
-    clicked_ids, clicked_topics, clicked_subtopics = clicked_map[user]
-    rec_ids, rec_topics, rec_subtopics = rec_map[user]
-
-    show_subtopic = metric == "subtopic"
-    category = DATASETS[dataset]["subtopic_category"]
+    clicked_ids, clicked_topics = clicked_map[user]
+    rec_ids, rec_topics = rec_map[user]
 
     with solara.Row(style={"align-items": "center", "gap": "12px", "margin-bottom": "8px"}):
         solara.Markdown(f"**User `{user}`** — {len(clicked_ids)} clicked article(s)")
@@ -544,18 +526,12 @@ def ExamplesPanel(dataset, recommender, metric):
             classes=["rounded-pill", "text-none"],
         )
 
-    if show_subtopic and category is not None:
-        solara.Markdown(
-            f"Articles in the **{category}** category — the ones subtopic diversity "
-            "is measured on — are shown in **bold**."
-        )
-
     with solara.Columns([1, 1]):
         ArticleList(
             "Actually clicked (ground truth)",
-            clicked_ids, clicked_topics, clicked_subtopics, titles, show_subtopic, category,
+            clicked_ids, clicked_topics, titles,
         )
         ArticleList(
             f"Recommended by {REC_LABELS[recommender]}",
-            rec_ids, rec_topics, rec_subtopics, titles, show_subtopic, category,
+            rec_ids, rec_topics, titles,
         )

@@ -30,6 +30,12 @@ there are txt files already prepared. The pipeline will skip the prediction and 
   (`articles.parquet`, train/validation splits) used as a second news source.
   Generated outputs for both datasets live under `data/data_processed/<dataset>/`.
   For further information on this dataset, please check out the [documentation](https://recsys.eb.dk/dataset/).
+- **mind_news** (`data/datasets/mind_news/`) — a news-only subset of MIND, built
+  from the MIND splits by `prepare_mind_news.py` (`MINDnews_train` /
+  `MINDnews_dev`). It keeps only impressions where the user clicked at least one
+  article in the **news** category and that showed at least two news candidates,
+  stripping every non-news article from the candidates and the user's history.
+  Built automatically the first time you run `python pipeline.py mind_news`.
 
 ### Recommender Systems
 
@@ -49,12 +55,6 @@ Each recommender produces a ranked top-k list per user impression
 
 - **Topic diversity** (`topic_diversity.py`) — share of unique topics
   (categories) in a user's list.
-- **Subtopic diversity** (`topic_diversity.py` + `recommender_module/common/subtopic.py`)
-  — topic diversity measured on a news-only subset of the dataset: only the
-  parent category's articles are kept (impressions with no news candidate or no
-  news click are dropped), each article's subcategory is promoted into the topic
-  slot, and the *same* recommenders are scored on that subset. Measures variety
-  of subcategories *within* the parent category. MIND only.
 - **Content diversity / ILD** (`content_diversity.py`) — intra-list diversity
   based on the mean pairwise cosine *distance* between article title embeddings.
 

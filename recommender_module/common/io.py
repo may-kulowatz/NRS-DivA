@@ -66,7 +66,8 @@ def _write_user_article_map(selections, article_meta, output_file):
 
     selections : iterable of (user_id, [article_id, ...]) — one item per
                  impression; ids for the same user are concatenated in order.
-    article_meta : {article_id: (topic, subtopic)} from a dataset adapter.
+    article_meta : {article_id: (topic, subtopic)} from a dataset adapter; only
+                 the topic (index 0) is written.
 
     This is the single writer shared by every ``save_user_article_map*`` entry
     point; they differ only in how they produce the (user_id, chosen_ids) stream.
@@ -79,20 +80,17 @@ def _write_user_article_map(selections, article_meta, output_file):
     with open(output_file, "w", encoding="utf-8") as f:
         for user_id, articles in user_articles.items():
             topics = [article_meta.get(a, ("unknown", "none"))[0] for a in articles]
-            subtopics = [article_meta.get(a, ("unknown", "none"))[1] for a in articles]
             f.write(
                 f"{user_id} ["
                 + ",".join(articles)
                 + "] ["
                 + ",".join(topics)
-                + "] ["
-                + ",".join(subtopics)
                 + "]\n"
             )
 
 
 def save_user_article_map(topk_file, article_meta, output_file):
-    """Aggregate an existing top-k file into per-user article/topic/subtopic lists.
+    """Aggregate an existing top-k file into per-user article/topic lists.
 
     topk_file    : a "{impr_id} {user_id} [pos] [ids]" file (top-k or ground truth)
     article_meta : {article_id: (topic, subtopic)} from a dataset adapter
@@ -107,28 +105,8 @@ def save_user_article_map(topk_file, article_meta, output_file):
     _write_user_article_map(selections(), article_meta, output_file)
 
 
-def save_user_article_map_from_results(results, impressions, article_meta, output_file):
-    """Build the per-user map straight from scored results, skipping the top-k file.
-
-    Used for the score-based recommenders (random, popular). The top-K selection
-    per impression is identical to ``save_predictions_topk`` (the k highest-score
-    candidates, k = number of clicks); only the on-disk intermediate is dropped.
-    """
-    candidate_ids = {imp.impr_id: imp.candidate_ids for imp in impressions}
-    k_by_impr = {imp.impr_id: sum(imp.labels) for imp in impressions}
-
-    def selections():
-        for impr_id, user_id, scores in tqdm(results):
-            k = k_by_impr.get(impr_id, 0)
-            ids = candidate_ids[impr_id]
-            top_k_idx = np.argsort(scores)[::-1][:k]
-            yield user_id, [ids[i] for i in top_k_idx]
-
-    _write_user_article_map(selections(), article_meta, output_file)
-
-
 def save_user_article_map_from_ranks(
-    prediction_file, impressions, article_meta, output_file, positions_by_impr=None
+    prediction_file, impressions, article_meta, output_file
 ):
     """Build the per-user map straight from a full-rank prediction file.
 
@@ -137,11 +115,6 @@ def save_user_article_map_from_ranks(
                       and the random/popular format ("impr_id user_id [ranks]")
                       parse the same way; the user_id always comes from the
                       impressions, not the file.
-    positions_by_impr : optional {impr_id: [orig_index, ...]}. When given, each
-                      impression's ranks are sliced to those candidate positions
-                      before ranking (the subtopic news subset reusing a model's
-                      full-dataset scores); otherwise the full candidate list is
-                      used.
 
     K per impression is the number of clicks it kept. The selection matches the
     old top-k step (np.argsort(ranks)[:k]); only the on-disk intermediate is gone.
@@ -154,25 +127,9 @@ def save_user_article_map_from_ranks(
 
     def selections():
         for imp in impressions:
-            full_ranks = pred_ranks.get(imp.impr_id, [])
-            if positions_by_impr is not None:
-                positions = positions_by_impr.get(imp.impr_id, [])
-                ranks = [full_ranks[i] for i in positions] if full_ranks else []
-            else:
-                ranks = full_ranks
+            ranks = pred_ranks.get(imp.impr_id, [])
             k = sum(imp.labels)
             top_k_idx = np.argsort(ranks)[:k]
             yield imp.user_id, [imp.candidate_ids[i] for i in top_k_idx]
 
     _write_user_article_map(selections(), article_meta, output_file)
-
-
-def save_user_article_map_from_ground_truth(gt_results, article_meta, output_file):
-    """Build the per-user map straight from extract_ground_truth() records.
-
-    gt_results : [(impr_id, user_id, positions, ids)] — the clicked candidates.
-    Lets the ground-truth map be built without writing the intermediate top-k file.
-    """
-    _write_user_article_map(
-        ((user_id, ids) for _, user_id, _, ids in gt_results), article_meta, output_file
-    )

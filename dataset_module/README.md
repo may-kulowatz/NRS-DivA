@@ -62,8 +62,9 @@ Parses MIND's tab-separated `behaviors.tsv` / `news.tsv`. Inline `Nxxxx-1`
 - **Pre:** `news_file` is UTF-8 MIND `news.tsv`; columns are
   `news_id, category, subcategory, title, ...` (≥3 columns used).
 - **Post:** returns `{news_id: (topic, subtopic)}`. `topic` is the category,
-  `subtopic` is the subcategory or the sentinel `"none"` when absent. Last line
-  wins on duplicate ids.
+  `subtopic` is the subcategory or the sentinel `"none"` when absent. Only
+  `topic` is consumed downstream; `subtopic` is retained in the tuple but unused.
+  Last line wins on duplicate ids.
 
 ### `load_titles(news_file)`
 - **Pre:** `news_file` is UTF-8 MIND `news.tsv`; title is column 4 (index 3).
@@ -94,9 +95,9 @@ error on module re-import).
 - **Post:** returns `{article_id: (topics_str, "none")}`. `topics_str` joins all
   of an article's topics with `"|"` and replaces intra-label whitespace with
   `"_"` (e.g. `"Crime|Violent_crime"`) so the whitespace-delimited user-article
-  file stays parseable; `"none"` when the article has no topics. **`subtopic` is
-  always `"none"`** — eb-nerd's numeric subcategory codes don't map to a parent
-  category, so subtopic diversity is not computed for eb-nerd.
+  file stays parseable; `"none"` when the article has no topics. The `subtopic`
+  slot is always `"none"` (eb-nerd has no usable subcategory) and is unused
+  downstream.
 
 ### `load_titles(articles_file)`
 - **Pre:** `articles_file` is an eb-nerd `articles.parquet` with columns

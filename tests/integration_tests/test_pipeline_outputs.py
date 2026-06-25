@@ -49,7 +49,7 @@ def count_lines(path):
 
 
 def parse_user_articles(path):
-    """Return {user_id: (ids, topics, subtopics)} from a user_articles file."""
+    """Return {user_id: (ids, topics)} from a user_articles file."""
     result = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -57,8 +57,7 @@ def parse_user_articles(path):
             user_id   = parts[0]
             ids       = parts[1][1:-1].split(",") if parts[1][1:-1] else []
             topics    = parts[2][1:-1].split(",") if parts[2][1:-1] else []
-            subtopics = parts[3][1:-1].split(",") if parts[3][1:-1] else []
-            result[user_id] = (ids, topics, subtopics)
+            result[user_id] = (ids, topics)
     return result
 
 
@@ -162,69 +161,38 @@ def test_article_count_per_user_matches_ground_truth():
 # Step 5 — Internal consistency within user article files
 # ---------------------------------------------------------------------------
 
-def test_user_articles_ids_topics_subtopics_same_length():
+def test_user_articles_ids_topics_same_length():
     skip_if_missing(*PROCESSED_FILES.values())
     for name, path in PROCESSED_FILES.items():
-        for user_id, (ids, topics, subtopics) in parse_user_articles(path).items():
-            assert len(ids) == len(topics) == len(subtopics), (
-                f"[{name}] user {user_id}: ids={len(ids)}, topics={len(topics)}, subtopics={len(subtopics)}"
+        for user_id, (ids, topics) in parse_user_articles(path).items():
+            assert len(ids) == len(topics), (
+                f"[{name}] user {user_id}: ids={len(ids)}, topics={len(topics)}"
             )
     logger.info(
-        "IDs, topics, and subtopics lists are equal length for every user in all files — "
+        "IDs and topics lists are equal length for every user in all files — "
         "expected 0 inconsistencies, actual 0"
     )
 
 
 # ---------------------------------------------------------------------------
-# Step 6 — Subtopic news subset (predictions/subtopic/) feeds subtopic diversity
+# Step 6 — Diversity scores cache
 # ---------------------------------------------------------------------------
 
-SUBTOPIC_DIR = os.path.join(PROC_DIR, "subtopic")
-# Ground truth drops the "prediction_" prefix (it's clicks, not a prediction).
-SUBTOPIC_PROCESSED_FILES = {
-    name: os.path.join(
-        SUBTOPIC_DIR,
-        "processed_ground_truth.txt"
-        if name == "ground_truth"
-        else f"prediction_processed_{name}.txt",
-    )
-    for name in ("ground_truth", "random", "popular", "nrms", "lstur")
-}
 DIVERSITY_SCORES_FILE = os.path.join(OUT_DIR, "diversity_scores.json")
 
 
-def test_subtopic_subset_files_parse_and_are_consistent():
-    skip_if_missing(*SUBTOPIC_PROCESSED_FILES.values())
-    for name, path in SUBTOPIC_PROCESSED_FILES.items():
-        for user_id, (ids, topics, subtopics) in parse_user_articles(path).items():
-            assert len(ids) == len(topics) == len(subtopics), (
-                f"[subtopic/{name}] user {user_id}: ids={len(ids)}, "
-                f"topics={len(topics)}, subtopics={len(subtopics)}"
-            )
-            # The subset promotes the subcategory into the topic slot, so the
-            # topic field holds real subcategories and the subtopic field is the
-            # "none" sentinel for every article.
-            assert all(s == "none" for s in subtopics), (
-                f"[subtopic/{name}] user {user_id}: expected all subtopics 'none', got {subtopics}"
-            )
-    logger.info(
-        "Subtopic subset files parse, are length-consistent, and carry subcategories "
-        "in the topic slot — expected 0 inconsistencies, actual 0"
-    )
-
-
-def test_diversity_scores_contains_subtopic_diversity():
+def test_diversity_scores_contains_topic_diversity():
     import json
     skip_if_missing(DIVERSITY_SCORES_FILE)
     with open(DIVERSITY_SCORES_FILE, encoding="utf-8") as f:
         cache = json.load(f)
     for rec, metrics in cache.items():
-        assert "subtopic_diversity" in metrics, (
-            f"'{rec}' is missing subtopic_diversity in diversity_scores.json"
+        assert "topic_diversity" in metrics, (
+            f"'{rec}' is missing topic_diversity in diversity_scores.json"
         )
-        value = metrics["subtopic_diversity"]["value"]
-        assert 0.0 <= value <= 1.0, f"'{rec}' subtopic_diversity {value} out of [0, 1]"
+        value = metrics["topic_diversity"]["value"]
+        assert 0.0 <= value <= 1.0, f"'{rec}' topic_diversity {value} out of [0, 1]"
     logger.info(
-        "diversity_scores.json has an in-range subtopic_diversity for every recommender — "
+        "diversity_scores.json has an in-range topic_diversity for every recommender — "
         "expected all present and in [0, 1], actual %d recommenders", len(cache)
     )

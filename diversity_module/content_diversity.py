@@ -94,7 +94,7 @@ def content_diversity(user_articles_file, news_embeddings):
     fewer than two embeddable articles are skipped.
     """
     per_user = []
-    for _, (ids, _, _) in _parse_user_articles(user_articles_file).items():
+    for _, (ids, _) in _parse_user_articles(user_articles_file).items():
         if len(ids) <= 1:
             continue
         vectors = [news_embeddings[n] for n in ids if n in news_embeddings]
