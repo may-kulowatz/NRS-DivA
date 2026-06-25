@@ -21,3 +21,4 @@ data/datasets/ebnerd/__MACOSX
 data/datasets/ebnerd/train
 data/datasets/ebnerd/validation
 data/datasets/ebnerd/articles.parquet
+data/datasets/ebnerd/contrastive_vector.parquet

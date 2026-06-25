@@ -58,12 +58,18 @@ subcategory has been promoted into the topic slot).
 ## `content_diversity.py`
 
 Intra-list diversity based on the mean pairwise cosine **distance** between
-article-title embeddings. **Requires `numpy`**, plus precomputed MIND word
-embeddings (`embedding.npy`) and `word_dict.pkl` (gitignored; fetched on demand
-by `recommender_module/mind_specific/prepare.py`). MIND only.
+article content embeddings. **Requires `numpy`.** The metric is dataset-agnostic;
+only the way the `{article_id: vector}` map is built differs per dataset (two
+loaders below):
+
+- **MIND** — `load_news_embeddings`, averaging MIND word embeddings
+  (`embedding.npy` + `word_dict.pkl`, gitignored; fetched on demand by the root
+  `prepare.py`). **Requires** those utils.
+- **eb-nerd** — `load_precomputed_embeddings`, reading ready-made document
+  vectors from `contrastive_vector.parquet`. **Requires `pyarrow`.**
 
 ### `load_news_embeddings(news_file, embedding_file, word_dict_file)`
-Builds the `{news_id: vector}` map each title is represented by.
+Builds the `{news_id: vector}` map by averaging a title's word embeddings.
 - **Pre:**
   - `news_file` is a MIND `news.tsv` (id in col 1, title in col 4).
   - `embedding_file` is the `.npy` word-embedding matrix.
@@ -74,10 +80,20 @@ Builds the `{news_id: vector}` map each title is represented by.
   its title words' embeddings. Rows with `< 4` columns and articles whose title
   has **no known word** are omitted (they have no content vector).
 
+### `load_precomputed_embeddings(vector_file, id_column="article_id", vector_column="contrastive_vector")`
+Reads one ready-made document embedding per article from a Parquet file (no
+tokenizer/word dict — sidesteps the language/vocab mismatch that makes MIND's
+English word embeddings unusable for eb-nerd's Danish titles).
+- **Pre:** `vector_file` is a Parquet file with an id column and a list-of-float
+  vector column (e.g. eb-nerd's `contrastive_vector.parquet`: `article_id` +
+  768-dim `contrastive_vector`). All vectors share one dimension.
+- **Post:** returns `{str(article_id): np.ndarray(float32)}`. Ids are stringified
+  to match the ids used throughout the pipeline.
+
 ### `content_diversity(user_articles_file, news_embeddings)`
 - **Pre:** `user_articles_file` follows the shared format; `news_embeddings` is
-  the mapping from `load_news_embeddings`. (Pass the same object across calls —
-  building it is expensive; the pipeline caches it per run.)
+  a `{article_id: vector}` map from **either** loader. (Pass the same object
+  across calls — building it is expensive; the pipeline caches it per run.)
 - **Post:** returns a `float`. For each user: ILD `= 1 - mean pairwise cosine
   similarity` over that user's embeddable articles.
   - Users with `≤ 1` clicked article are skipped.

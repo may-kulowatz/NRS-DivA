@@ -76,7 +76,6 @@ TODO:
 - delete evaluation and explore-ebnerd eventually
 - refactor recommender structure (io.py somewhere else?)
 - Add more MIND recommenders
-- Add content-diversity to ebnerd
 - enrich texts in Solara Dashboard + add links
 - add information about code taken from other repositories (ebnerd, MIND, recommenders, content-diversity)
 - add license information

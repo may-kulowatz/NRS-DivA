@@ -49,6 +49,28 @@ def load_news_embeddings(news_file, embedding_file, word_dict_file):
     return news_embeddings
 
 
+def load_precomputed_embeddings(
+    vector_file, id_column="article_id", vector_column="contrastive_vector"
+):
+    """Build a {article_id: embedding vector} mapping from a Parquet file.
+
+    Unlike load_news_embeddings (which averages per-word vectors over a title),
+    this reads one ready-made document embedding per article — e.g. eb-nerd's
+    contrastive_vector.parquet, a 768-dim vector per article_id. There is no
+    tokenizer or word dictionary involved, so it sidesteps the language/vocab
+    mismatch that makes MIND's English word embeddings unusable for eb-nerd.
+
+    Article ids are stringified to match the ids used everywhere else in the
+    pipeline (the adapters stringify ids, MIND ids are already strings).
+    """
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(vector_file, columns=[id_column, vector_column])
+    ids = table.column(id_column).to_pylist()
+    vectors = table.column(vector_column).to_pylist()
+    return {str(aid): np.asarray(v, dtype=np.float32) for aid, v in zip(ids, vectors)}
+
+
 def _ild(vectors):
     """Intra-list diversity of one user's list of content vectors.
 

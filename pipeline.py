@@ -30,7 +30,11 @@ from recommender_module.common.subtopic import (
 # optional (content-diversity) embeddings.
 from prepare import ensure_raw_data, ensure_mind_utils
 from diversity_module.topic_diversity import topic_diversity, subtopic_diversity
-from diversity_module.content_diversity import content_diversity, load_news_embeddings
+from diversity_module.content_diversity import (
+    content_diversity,
+    load_news_embeddings,
+    load_precomputed_embeddings,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +54,10 @@ DATASETS = {
         # embeddings/word-dict that content diversity needs.
         "model_recs": ["nrms", "lstur"],
         "subtopic_category": "news",
+        # "word_average": each article vector is the mean of its title's word
+        # embeddings, built from the (gitignored) utils bundle.
         "content_diversity": {
+            "kind": "word_average",
             "embedding": ("utils", "embedding.npy"),
             "word_dict": ("utils", "word_dict.pkl"),
         },
@@ -63,14 +70,19 @@ DATASETS = {
         "adapter": ebnerd_adapter,
         "behaviors": ("validation", "behaviors.parquet"),
         "articles": ("articles.parquet",),
-        # eb-nerd ships no model prediction files and no embeddings yet, so both
-        # the model recommenders and content diversity are skipped. Its numeric
-        # subcategory codes don't map to a parent category, so subtopic diversity
-        # is skipped too (subtopic_category=None); topic diversity uses the
-        # multi-valued `topics` field instead.
+        # eb-nerd ships no model prediction files, so the model recommenders are
+        # skipped. Its numeric subcategory codes don't map to a parent category,
+        # so subtopic diversity is skipped too (subtopic_category=None); topic
+        # diversity uses the multi-valued `topics` field instead.
         "model_recs": [],
         "subtopic_category": None,
-        "content_diversity": None,
+        # "precomputed": one ready-made document embedding per article, read
+        # straight from contrastive_vector.parquet (768-dim contrastive vectors).
+        "content_diversity": {
+            "kind": "precomputed",
+            "vectors": ("contrastive_vector.parquet",),
+        },
+        # contrastive_vector.parquet is shipped with the dataset, not fetched.
         "prepare": None,
     },
 }
@@ -362,22 +374,30 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT):
             raise MetricUnavailable(_embeddings["error"])
         if "value" not in _embeddings:
             try:
-                # The embeddings/dicts are large gitignored inputs; fetch them on
-                # demand (dataset-specific hook) before the first content-diversity
-                # compute. If they can't be obtained (no network, host down,
-                # Recommenders not installed), record it and let content diversity
-                # be skipped rather than crashing the whole run.
-                if cfg["prepare"] is not None:
-                    cfg["prepare"](in_dir)
-                _embeddings["value"] = load_news_embeddings(
-                    articles_file,
-                    os.path.join(in_dir, *cd_cfg["embedding"]),
-                    os.path.join(in_dir, *cd_cfg["word_dict"]),
-                )
+                if cd_cfg["kind"] == "precomputed":
+                    # Ready-made document vectors shipped with the dataset
+                    # (e.g. eb-nerd's contrastive_vector.parquet) — just load them.
+                    _embeddings["value"] = load_precomputed_embeddings(
+                        os.path.join(in_dir, *cd_cfg["vectors"])
+                    )
+                else:
+                    # word_average: the embeddings/dicts are large gitignored
+                    # inputs; fetch them on demand (dataset-specific hook) before
+                    # the first content-diversity compute.
+                    if cfg["prepare"] is not None:
+                        cfg["prepare"](in_dir)
+                    _embeddings["value"] = load_news_embeddings(
+                        articles_file,
+                        os.path.join(in_dir, *cd_cfg["embedding"]),
+                        os.path.join(in_dir, *cd_cfg["word_dict"]),
+                    )
             except Exception as exc:
+                # If the vectors can't be obtained (missing file, no network, host
+                # down, Recommenders not installed), record it and let content
+                # diversity be skipped rather than crashing the whole run.
                 _embeddings["error"] = (
-                    f"content diversity needs MIND embeddings, which couldn't be "
-                    f"obtained ({exc.__class__.__name__})"
+                    f"content diversity needs article embeddings, which couldn't "
+                    f"be obtained ({exc.__class__.__name__})"
                 )
                 raise MetricUnavailable(_embeddings["error"]) from exc
         return _embeddings["value"]
