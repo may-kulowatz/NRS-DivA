@@ -1,23 +1,7 @@
 """Shared, dataset-agnostic writers for prediction and user-article files.
 
-Every recommender (random, popular, NRMS, ground truth) produces the same kind
-of output, so the writing logic lives here once instead of being copy-pasted
-into each recommender module. These functions operate purely on the normalized
-in-memory structures (Impression records, scored results, {id: (topic, subtopic)}
-metadata) and never touch a dataset-specific file format.
-
-Output line formats
--------------------
-  predictions      : "{impr_id} {user_id} [rank,rank,...]"          (1 = best)
-  top-k / ground   : "{impr_id} {user_id} [pos,pos,...] [id,id,...]"
-  user-article map : "{user_id} [ids] [topics] [subtopics]"
-
-The pipeline builds the user-article map straight from each recommender's output
-(scored results, a full-rank prediction file, or ground-truth records) via the
-``save_user_article_map_from_*`` helpers — the per-impression top-k is computed in
-memory and never written to disk. ``save_predictions_topk`` still writes that
-intermediate format on demand (e.g. for ranking-quality evaluation), and
-``save_user_article_map`` still aggregates an existing top-k file.
+Every recommender produces the same kind of output, so the writing logic lives here once instead of being copy-pasted
+into each recommender module.
 """
 
 from collections import defaultdict
@@ -54,11 +38,9 @@ def save_predictions(results, output_file):
 def save_predictions_topk(results, impressions, output_file):
     """Write the top-K recommended candidates per impression.
 
-    K for each impression is the number of clicks it actually received
-    (sum of its labels), so every recommender is asked for exactly as many
-    items as the user clicked — making the outputs directly comparable to the
-    ground truth. Candidate ids come from the impressions themselves, so no
-    dataset file needs re-reading.
+    K for each impression is the number of clicks it actually received,
+    so every recommender is asked for exactly as many items as the user clicked
+    — making the outputs directly comparable to the ground truth.
     """
     candidate_ids = {imp.impr_id: imp.candidate_ids for imp in impressions}
     k_by_impr = {imp.impr_id: sum(imp.labels) for imp in impressions}

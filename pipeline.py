@@ -25,6 +25,10 @@ from recommender_module.common.subtopic import (
     build_subtopic_subset,
     subtopic_subset_path,
 )
+# Raw-data fetchers: ensure_raw_data guarantees the essential inputs up front;
+# ensure_mind_utils is wired in per-dataset via the "prepare" config hook for the
+# optional (content-diversity) embeddings.
+from prepare import ensure_raw_data, ensure_mind_utils
 from diversity_module.topic_diversity import topic_diversity, subtopic_diversity
 from diversity_module.content_diversity import content_diversity, load_news_embeddings
 
@@ -50,6 +54,9 @@ DATASETS = {
             "embedding": ("utils", "embedding.npy"),
             "word_dict": ("utils", "word_dict.pkl"),
         },
+        # Fetches the (gitignored) embeddings/dicts on demand before content
+        # diversity reads them. Called with the dataset's input_dir.
+        "prepare": ensure_mind_utils,
     },
     "ebnerd": {
         "dir": "ebnerd",
@@ -64,6 +71,7 @@ DATASETS = {
         "model_recs": [],
         "subtopic_category": None,
         "content_diversity": None,
+        "prepare": None,
     },
 }
 
@@ -125,6 +133,12 @@ def _save_score_cache(path, cache):
         json.dump(cache, f, indent=2)
 
 
+class MetricUnavailable(Exception):
+    """A metric's inputs couldn't be obtained (e.g. embeddings can't be
+    downloaded). The metric is skipped for the affected runs rather than failing
+    the whole pipeline."""
+
+
 def _compute_run_scores(path, metric_defs, prev_cache):
     """Compute (or reuse) every metric for one user-article file.
 
@@ -133,7 +147,9 @@ def _compute_run_scores(path, metric_defs, prev_cache):
 
     Returns (scores, cache, n_computed): scores is {metric_key: value} for
     display; cache is the refreshed {metric_key: {"value", "sig"}} to persist;
-    n_computed counts how many metrics were actually (re)calculated.
+    n_computed counts how many metrics were actually (re)calculated. A metric
+    whose fn raises MetricUnavailable is skipped (left out of scores/cache) so
+    the others still compute.
     """
     sig = _file_sig(path)
     scores, cache, n_computed = {}, {}, 0
@@ -142,7 +158,11 @@ def _compute_run_scores(path, metric_defs, prev_cache):
         if prev is not None and prev.get("sig") == sig:
             value = prev["value"]
         else:
-            value = fn(path)
+            try:
+                value = fn(path)
+            except MetricUnavailable as exc:
+                print(f"  Skipping {key}: {exc}")
+                continue
             n_computed += 1
         scores[key] = value
         cache[key] = {"value": value, "sig": sig}
@@ -157,6 +177,11 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT):
 
     in_dir = input_dir(dataset, data_root)
     out_dir = output_dir(dataset, data_root)
+
+    # Make sure the dataset's essential raw inputs exist before anything reads
+    # them, fetching whatever is missing (prepare.ensure_raw_data). The optional
+    # MIND embeddings are fetched later, lazily, via the "prepare" hook.
+    ensure_raw_data(dataset, in_dir)
 
     behaviors_file = os.path.join(in_dir, *cfg["behaviors"])
     articles_file = os.path.join(in_dir, *cfg["articles"])
@@ -333,12 +358,28 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT):
     # them is expensive, so load lazily and at most once per run.
     _embeddings = {}
     def get_embeddings():
+        if "error" in _embeddings:           # fetch already failed once this run
+            raise MetricUnavailable(_embeddings["error"])
         if "value" not in _embeddings:
-            _embeddings["value"] = load_news_embeddings(
-                articles_file,
-                os.path.join(in_dir, *cd_cfg["embedding"]),
-                os.path.join(in_dir, *cd_cfg["word_dict"]),
-            )
+            try:
+                # The embeddings/dicts are large gitignored inputs; fetch them on
+                # demand (dataset-specific hook) before the first content-diversity
+                # compute. If they can't be obtained (no network, host down,
+                # Recommenders not installed), record it and let content diversity
+                # be skipped rather than crashing the whole run.
+                if cfg["prepare"] is not None:
+                    cfg["prepare"](in_dir)
+                _embeddings["value"] = load_news_embeddings(
+                    articles_file,
+                    os.path.join(in_dir, *cd_cfg["embedding"]),
+                    os.path.join(in_dir, *cd_cfg["word_dict"]),
+                )
+            except Exception as exc:
+                _embeddings["error"] = (
+                    f"content diversity needs MIND embeddings, which couldn't be "
+                    f"obtained ({exc.__class__.__name__})"
+                )
+                raise MetricUnavailable(_embeddings["error"]) from exc
         return _embeddings["value"]
 
     # Which metrics apply to this dataset, as (key, fn(path) -> float).

@@ -38,12 +38,13 @@ userDict_file = os.path.join(utils_dir, "uid2index.pkl")
 wordDict_file = os.path.join(utils_dir, "word_dict.pkl")
 yaml_file = os.path.join(utils_dir, "nrms.yaml")
 
-# Download utils (embedding, dictionaries, yaml) only if not already present
+# Download utils (embedding, dictionaries, yaml) only if not already present.
+# The library's built-in URL is dead, so pass the Hugging Face base URL.
 if not os.path.exists(yaml_file):
     _, _, _, mind_utils = get_mind_data_set('small')
     download_deeprec_resources(
-        r'https://huggingface.co/dataset_module/Recommenders/MIND/resolve/main/',
-        utils_dir, mind_utils
+        'https://huggingface.co/datasets/Recommenders/MIND/resolve/main/',
+        utils_dir, mind_utils,
     )
 
 # Set parameters
