@@ -74,7 +74,7 @@ be read and tested on its own:
   they operate on. Each recommender knows how to generate its raw prediction file
   and build its processed per-user file, so the pipeline iterates a list instead
   of special-casing each one. Adding a recommender is a new class here.
-- `score_cache.py` — the diversity-score cache and file-staleness helpers.
+- `scores.py` — diversity-score computation, results IO, and file-staleness helpers.
 - `pipeline.py` — `run_pipeline`, the orchestration that ties the above together.
 - `cli.py` — the interactive front-end. `python pipeline.py [dataset]` delegates
   to it, so the documented entry point is unchanged.

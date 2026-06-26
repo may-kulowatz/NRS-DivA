@@ -175,7 +175,7 @@ def test_user_articles_ids_topics_same_length():
 
 
 # ---------------------------------------------------------------------------
-# Step 6 — Diversity scores cache
+# Step 6 — Diversity scores
 # ---------------------------------------------------------------------------
 
 DIVERSITY_SCORES_FILE = os.path.join(OUT_DIR, "diversity_scores.json")
@@ -185,14 +185,14 @@ def test_diversity_scores_contains_topic_diversity():
     import json
     skip_if_missing(DIVERSITY_SCORES_FILE)
     with open(DIVERSITY_SCORES_FILE, encoding="utf-8") as f:
-        cache = json.load(f)
-    for rec, metrics in cache.items():
+        scores = json.load(f)
+    for rec, metrics in scores.items():
         assert "topic_diversity" in metrics, (
             f"'{rec}' is missing topic_diversity in diversity_scores.json"
         )
-        value = metrics["topic_diversity"]["value"]
+        value = metrics["topic_diversity"]
         assert 0.0 <= value <= 1.0, f"'{rec}' topic_diversity {value} out of [0, 1]"
     logger.info(
         "diversity_scores.json has an in-range topic_diversity for every recommender — "
-        "expected all present and in [0, 1], actual %d recommenders", len(cache)
+        "expected all present and in [0, 1], actual %d recommenders", len(scores)
     )

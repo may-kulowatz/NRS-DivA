@@ -3,9 +3,9 @@ prediction / processed files, and report diversity scores.
 
 The supporting concerns live in their own modules: the dataset registry and path
 helpers in ``config.py``, the recommender interface in
-``recommender_module/base.py``, the score cache in ``score_cache.py``, and the
-interactive front-end in ``cli.py``. This module is just the orchestration that
-ties them together.
+``recommender_module/base.py``, the diversity-score computation/IO in
+``scores.py``, and the interactive front-end in ``cli.py``. This module is just
+the orchestration that ties them together.
 """
 
 import os
@@ -15,11 +15,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import DATASETS, DATA_ROOT, input_dir, output_dir
 from recommender_module.base import build_recommenders, RunContext
-from score_cache import (
+from scores import (
     MetricUnavailable,
-    _compute_run_scores,
-    _load_score_cache,
-    _save_score_cache,
+    _compute_scores,
+    _save_scores,
     _stale,
 )
 # Each dataset's preparation is driven through its config "prepare" module:
@@ -35,19 +34,19 @@ from diversity_module.content_diversity import (
 
 def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
                  force_recommenders=None, force_processed=False,
-                 force_diversity=False, generate_missing=True, train_missing=True):
+                 generate_missing=True, train_missing=True):
     """Run a dataset's recommenders + diversity scoring.
 
     By default a recommender's prediction is (re)built only when missing and its
-    processed file / diversity score only when out of date — the cheap "just make
-    sure everything's there" behaviour used by code and tests. The keyword flags
-    give the interactive front-end finer control:
+    processed file only when out of date — the cheap "just make sure everything's
+    there" behaviour used by code and tests. Diversity scores are always
+    recomputed from the processed files (there is no reuse cache; see
+    ``scores.py``). The keyword flags give the interactive front-end finer control:
 
     force_recommenders : iterable of recommender names whose raw predictions are
                          regenerated even if they already exist (model recs are
                          retrained — needs TensorFlow).
     force_processed    : rebuild every processed per-user file, not just stale ones.
-    force_diversity    : recompute diversity scores even when the cache is valid.
     generate_missing   : auto-generate a *cheap* recommender (ground truth, random,
                          popular) when its file is missing. Set False to only build
                          what force_recommenders asks for.
@@ -155,7 +154,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
         print("Processed per-user files already up to date.")
 
     # -------------------------------------------------------------------------
-    # Diversity scores (cached; only recomputed when inputs change or forced)
+    # Diversity scores (recomputed every run; persisted for the dashboard)
     # -------------------------------------------------------------------------
     print("Calculating diversity scores...")
     cd_cfg = cfg["content_diversity"]
@@ -208,24 +207,10 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     # models..., ground_truth) from its processed per-user file.
     runs = [(rec.name, rec.processed_path(ctx)) for rec in active]
 
-    cache_file = os.path.join(out_dir, "diversity_scores.json")
-    old_cache = _load_score_cache(cache_file)
-    new_cache = {}
-    scores = {}
-    total_computed = 0
-    for name, path in runs:
-        entry, run_cache, n_computed = _compute_run_scores(
-            path, metric_defs, old_cache.get(name, {}), force=force_diversity
-        )
-        scores[name] = entry
-        new_cache[name] = run_cache
-        total_computed += n_computed
-
-    if new_cache != old_cache:
-        _save_score_cache(cache_file, new_cache)
-
-    reused = len(runs) * len(metric_defs) - total_computed
-    print(f"  {total_computed} score(s) computed, {reused} reused from cache.")
+    scores_file = os.path.join(out_dir, "diversity_scores.json")
+    scores = {name: _compute_scores(path, metric_defs) for name, path in runs}
+    _save_scores(scores_file, scores)
+    print(f"  scored {len(runs)} recommender(s).")
 
     print("\n=== Diversity Scores ===")
     for name, s in scores.items():

@@ -1,52 +1,22 @@
 {
   "random": {
-    "topic_diversity": {
-      "value": 0.8641916929016004,
-      "sig": "1782412112003908100-2188246"
-    },
-    "content_diversity": {
-      "value": 0.3446402689076656,
-      "sig": "1782412112003908100-2188246"
-    }
+    "topic_diversity": 0.8641916929016004,
+    "content_diversity": 0.3446402689076656
   },
   "popular": {
-    "topic_diversity": {
-      "value": 0.7059714988069781,
-      "sig": "1782412113224686500-2141312"
-    },
-    "content_diversity": {
-      "value": 0.2591615725042415,
-      "sig": "1782412113224686500-2141312"
-    }
+    "topic_diversity": 0.7059714988069781,
+    "content_diversity": 0.2591615725042415
   },
   "nrms": {
-    "topic_diversity": {
-      "value": 0.7034710132190252,
-      "sig": "1782412114571545100-2213219"
-    },
-    "content_diversity": {
-      "value": 0.31109891380481114,
-      "sig": "1782412114571545100-2213219"
-    }
+    "topic_diversity": 0.7034710132190252,
+    "content_diversity": 0.31109891380481114
   },
   "lstur": {
-    "topic_diversity": {
-      "value": 0.6959573475962505,
-      "sig": "1782412115742901800-2192693"
-    },
-    "content_diversity": {
-      "value": 0.3062013350852219,
-      "sig": "1782412115742901800-2192693"
-    }
+    "topic_diversity": 0.6959573475962505,
+    "content_diversity": 0.3062013350852219
   },
   "ground_truth": {
-    "topic_diversity": {
-      "value": 0.8040301438121533,
-      "sig": "1782412116087881900-2173186"
-    },
-    "content_diversity": {
-      "value": 0.33013167860169207,
-      "sig": "1782412116087881900-2173186"
-    }
+    "topic_diversity": 0.8040301438121533,
+    "content_diversity": 0.33013167860169207
   }
 }

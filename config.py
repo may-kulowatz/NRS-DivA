@@ -3,8 +3,8 @@
 The single place that describes every dataset the pipeline knows about — its
 on-disk folder, which adapter parses it, where its raw inputs live, and which
 optional steps apply. Kept separate from the orchestration (``pipeline.py``) and
-the score cache (``score_cache.py``) so that read-only consumers (e.g. the
-dashboard) can import the configuration without pulling in the run machinery.
+the diversity-score computation (``scores.py``) so that read-only consumers (e.g.
+the dashboard) can import the configuration without pulling in the run machinery.
 """
 
 import os

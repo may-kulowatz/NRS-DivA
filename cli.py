@@ -51,8 +51,9 @@ def _choose_dataset(argv):
 
 def interactive_main(argv):
     """Interactive driver: choose a dataset, show what already exists, then ask
-    which recommenders to (re)run, whether to rebuild the processed files, and
-    whether to recompute the diversity scores — and run accordingly."""
+    which recommenders to (re)run and whether to rebuild the processed files — and
+    run accordingly. Diversity scores are always recomputed from the processed
+    files."""
     dataset = _choose_dataset(argv)
     cfg = DATASETS[dataset]
     out_dir = output_dir(dataset)
@@ -97,16 +98,15 @@ def interactive_main(argv):
         if _ask_yes_no(f"  (re)run {name}{extra}?", default=default):
             force_recommenders.add(name)
 
-    # 3 / 5 — rebuild processed files, and recompute diversity.
+    # 3 — rebuild processed files. (Diversity scores are always recomputed from
+    # the processed files, so there is no separate "recalculate" prompt.)
     force_processed = _ask_yes_no("\nRebuild processed per-user files?", default=False)
-    force_diversity = _ask_yes_no("(Re)calculate diversity scores?", default=False)
 
     print()
     run_pipeline(
         dataset,
         force_recommenders=force_recommenders,
         force_processed=force_processed,
-        force_diversity=force_diversity,
         # Only build what was explicitly asked for; the prompts already defaulted
         # missing cheap recommenders to "yes".
         generate_missing=False,

@@ -1,32 +1,14 @@
 {
   "random": {
-    "topic_diversity": {
-      "value": 0.8409137936887203,
-      "sig": "1782409565535192700-554415"
-    },
-    "content_diversity": {
-      "value": 0.3386629495619573,
-      "sig": "1782409565535192700-554415"
-    }
+    "topic_diversity": 0.8409137936887203,
+    "content_diversity": 0.3386629495619573
   },
   "popular": {
-    "topic_diversity": {
-      "value": 0.8046049051207947,
-      "sig": "1782409565990043600-522701"
-    },
-    "content_diversity": {
-      "value": 0.2669239339989768,
-      "sig": "1782409565990043600-522701"
-    }
+    "topic_diversity": 0.8046049051207947,
+    "content_diversity": 0.2669239339989768
   },
   "ground_truth": {
-    "topic_diversity": {
-      "value": 0.778343818589907,
-      "sig": "1782409566186898100-548656"
-    },
-    "content_diversity": {
-      "value": 0.3100083988952011,
-      "sig": "1782409566186898100-548656"
-    }
+    "topic_diversity": 0.778343818589907,
+    "content_diversity": 0.3100083988952011
   }
 }

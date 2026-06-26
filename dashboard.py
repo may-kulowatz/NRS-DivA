@@ -30,7 +30,7 @@ PRIMARY_GREEN = "#2e7d32"
 # config and path helpers, plus the score-cache reader, but never the compute or
 # write helpers.
 from config import DATASETS, input_dir, output_dir
-from score_cache import _file_sig, _load_score_cache
+from scores import _file_sig, _load_scores
 from recommender_module.common.io import processed_filename
 from diversity_module.topic_diversity import _parse_user_articles
 
@@ -205,15 +205,15 @@ def read_score(dataset, recommender, metric):
         f"No {METRIC_LABELS[metric].lower()} for '{REC_LABELS[recommender]}' on "
         f"{DATASET_LABELS[dataset]} yet. Generate it with:  python pipeline.py {dataset}"
     )
-    cache_file = os.path.join(output_dir(dataset), "diversity_scores.json")
-    if not os.path.exists(cache_file):
+    scores_file = os.path.join(output_dir(dataset), "diversity_scores.json")
+    if not os.path.exists(scores_file):
         return None, not_generated
 
-    cache = _load_score_cache(cache_file)
-    entry = cache.get(recommender, {}).get(_CACHE_KEY[metric])
-    if entry is None:
+    all_scores = _load_scores(scores_file)
+    value = all_scores.get(recommender, {}).get(_CACHE_KEY[metric])
+    if value is None:
         return None, not_generated
-    return entry["value"], None
+    return value, None
 
 
 # ---------------------------------------------------------------------------
