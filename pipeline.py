@@ -106,6 +106,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
         out_dir=out_dir, raw_dir=raw_dir, processed_dir=processed_dir,
         seed=seed, in_dir=in_dir,
         train_split=cfg.get("train_split"), dev_split=cfg["behaviors"][0],
+        model_trainers=cfg.get("model_trainers", {}),
     )
 
     # -------------------------------------------------------------------------

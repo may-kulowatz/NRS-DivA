@@ -51,6 +51,10 @@ class RunContext:
     in_dir: str = None        # dataset input dir (model training)
     train_split: str = None   # training split sub-folder (model training)
     dev_split: str = None     # validation split sub-folder (model training)
+    # {model_name: (module_path, fn_name)} of the per-dataset training scripts,
+    # from the dataset config. Different datasets train the same model name with
+    # different scripts (MIND-format vs eb-nerd), so the trainer is dataset-driven.
+    model_trainers: dict = None
 
 
 class Recommender:
@@ -141,20 +145,15 @@ class GroundTruthRecommender(Recommender):
 
 
 # Model name -> (module path, function) of the training script that builds its
-# prediction file. Imported lazily and only when a prediction file is missing,
-# because the scripts pull in TensorFlow + the recommenders library.
-_MODEL_TRAINERS = {
-    "nrms": ("recommender_module.mind_specific.nrms_mind", "run"),
-    "lstur": ("recommender_module.mind_specific.lstur_mind", "run"),
-}
-
-
 class ModelRecommender(_RankRecommender):
     """A neural recommender trained on demand by its dataset's training script.
 
-    ``generate`` hands the dataset's paths to the training script (NRMS / LSTUR),
-    which trains the model and writes the full-rank prediction file. Marked
-    ``expensive`` so the pipeline only (re)trains it when explicitly asked.
+    ``generate`` looks up this model's training script for the current dataset
+    (``ctx.model_trainers``, from the dataset config — each is a
+    ``(module_path, fn_name)`` imported lazily so TensorFlow is only pulled in when
+    a model is actually (re)trained) and hands it the dataset's paths. The script
+    trains the model and writes the full-rank ``"{impr_id} [ranks]"`` prediction
+    file. Marked ``expensive`` so the pipeline only (re)trains it when asked.
     """
     expensive = True
 
@@ -162,7 +161,7 @@ class ModelRecommender(_RankRecommender):
         self.name = name
 
     def generate(self, ctx):
-        module_path, fn_name = _MODEL_TRAINERS[self.name]
+        module_path, fn_name = ctx.model_trainers[self.name]
         trainer = getattr(importlib.import_module(module_path), fn_name)
         trainer(ctx.in_dir, ctx.train_split, ctx.dev_split, self.raw_path(ctx))
 

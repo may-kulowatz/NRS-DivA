@@ -6,7 +6,7 @@ import datetime
 import inspect
 
 
-from ebrec.utils._polars import (
+from data.datasets.ebnerd.utils._polars import (
     slice_join_dataframes,
     _check_columns_in_df,
     drop_nulls_from_list,
@@ -15,8 +15,8 @@ from ebrec.utils._polars import (
 )
 import polars as pl
 
-from ebrec.utils._constants import *
-from ebrec.utils._python import create_lookup_dict
+from data.datasets.ebnerd.utils._constants import *
+from data.datasets.ebnerd.utils._python import create_lookup_dict
 
 
 def create_binary_labels_column(
@@ -38,7 +38,7 @@ def create_binary_labels_column(
         pl.DataFrame: A new DataFrame with an additional "labels" column.
 
     Examples:
-    >>> from ebrec.utils._constants import (
+    >>> from data.datasets.ebnerd.utils._constants import (
             DEFAULT_CLICKED_ARTICLES_COL,
             DEFAULT_INVIEW_ARTICLES_COL,
             DEFAULT_LABELS_COL,
@@ -124,7 +124,7 @@ def filter_minimum_negative_samples(
     clicked_col: str = DEFAULT_CLICKED_ARTICLES_COL,
 ) -> pl.DataFrame:
     """
-    >>> from ebrec.utils._constants import DEFAULT_CLICKED_ARTICLES_COL, DEFAULT_INVIEW_ARTICLES_COL
+    >>> from data.datasets.ebnerd.utils._constants import DEFAULT_CLICKED_ARTICLES_COL, DEFAULT_INVIEW_ARTICLES_COL
     >>> df = pl.DataFrame(
             {
                 DEFAULT_INVIEW_ARTICLES_COL: [[1, 2, 3], [1], [1, 2, 3]],
@@ -294,7 +294,7 @@ def sample_article_ids(
         IDs in the specified column replaced by a list of `n` sampled article IDs.
 
     Examples:
-    >>> from ebrec.utils._constants import DEFAULT_INVIEW_ARTICLES_COL
+    >>> from data.datasets.ebnerd.utils._constants import DEFAULT_INVIEW_ARTICLES_COL
     >>> df = pl.DataFrame(
             {
                 "clicked": [
@@ -384,7 +384,7 @@ def remove_positives_from_inview(
         pl.DataFrame: A new DataFrame with only negative article IDs retained.
 
     Examples:
-    >>> from ebrec.utils._constants import DEFAULT_INVIEW_ARTICLES_COL, DEFAULT_CLICKED_ARTICLES_COL
+    >>> from data.datasets.ebnerd.utils._constants import DEFAULT_INVIEW_ARTICLES_COL, DEFAULT_CLICKED_ARTICLES_COL
     >>> df = pl.DataFrame(
             {
                 "user_id": [1, 1, 2],
@@ -468,7 +468,7 @@ def sampling_strategy_wu2019(
         ValueError: If the input DataFrame does not contain the necessary columns.
 
     Examples:
-    >>> from ebrec.utils._constants import DEFAULT_CLICKED_ARTICLES_COL, DEFAULT_INVIEW_ARTICLES_COL
+    >>> from data.datasets.ebnerd.utils._constants import DEFAULT_CLICKED_ARTICLES_COL, DEFAULT_INVIEW_ARTICLES_COL
     >>> import polars as pl
     >>> df = pl.DataFrame(
             {
@@ -681,7 +681,7 @@ def create_dynamic_history(
         ValueError: If the input DataFrame does not contain columns 'user_id', 'article_id', and 'first_page_time'.
 
     Examples:
-    >>> from ebrec.utils._constants import (
+    >>> from data.datasets.ebnerd.utils._constants import (
             DEFAULT_IMPRESSION_TIMESTAMP_COL,
             DEFAULT_ARTICLE_ID_COL,
             DEFAULT_USER_COL,
@@ -776,7 +776,7 @@ def create_fixed_history(
         ValueError: If the input dataframe does not contain the required columns.
 
     Examples:
-        >>> from ebrec.utils._constants import (
+        >>> from data.datasets.ebnerd.utils._constants import (
                 DEFAULT_IMPRESSION_TIMESTAMP_COL,
                 DEFAULT_ARTICLE_ID_COL,
                 DEFAULT_USER_COL,
@@ -890,7 +890,7 @@ def create_fixed_history_aggr_columns(
         ValueError: If the input dataframe does not contain the required columns.
 
     Examples:
-        >>> from ebrec.utils._constants import (
+        >>> from data.datasets.ebnerd.utils._constants import (
                 DEFAULT_IMPRESSION_TIMESTAMP_COL,
                 DEFAULT_ARTICLE_ID_COL,
                 DEFAULT_READ_TIME_COL,
@@ -1040,7 +1040,7 @@ def add_prediction_scores(
     Raises:
         ValueError: If there is a mismatch in the lengths of the list columns.
 
-    >>> from ebrec.utils._constants import DEFAULT_INVIEW_ARTICLES_COL
+    >>> from data.datasets.ebnerd.utils._constants import DEFAULT_INVIEW_ARTICLES_COL
     >>> df = pl.DataFrame(
             {
                 "id": [1,2],

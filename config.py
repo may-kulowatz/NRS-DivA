@@ -34,7 +34,16 @@ DATASETS = {
         "articles": ("MINDsmall_dev", "news.tsv"),
         # MIND ships pre-computed NRMS and LSTUR prediction files plus the
         # embeddings/word-dict that content diversity needs.
-        "model_recs": ["nrms", "lstur"],
+        "model_recs": ["nrms", "lstur", "naml"],
+        # Per-model training scripts (module, function), imported lazily when a
+        # prediction must be (re)built. MIND-format datasets use the mind_specific
+        # scripts. (NRMS/LSTUR prediction files are shipped; NAML is trained on
+        # demand.)
+        "model_trainers": {
+            "nrms": ("recommender_module.mind_specific.nrms_mind", "run"),
+            "lstur": ("recommender_module.mind_specific.lstur_mind", "run"),
+            "naml": ("recommender_module.mind_specific.naml_mind", "run"),
+        },
         # Training split the model scripts read when a prediction file must be
         # (re)built; the dev split is taken from "behaviors" above.
         "train_split": "MINDsmall_train",
@@ -55,9 +64,17 @@ DATASETS = {
         "adapter": ebnerd_adapter,
         "behaviors": ("validation", "behaviors.parquet"),
         "articles": ("articles.parquet",),
-        # eb-nerd ships no model prediction files, so the model recommenders are
-        # skipped. Topic diversity uses the multi-valued `topics` field instead.
-        "model_recs": [],
+        # NRMS / LSTUR, trained on demand by the eb-nerd-specific scripts (which
+        # write the same "{impr_id} [ranks]" prediction file MIND's models do).
+        # Topic diversity also uses the multi-valued `topics` field.
+        "model_recs": ["nrms", "lstur"],
+        "model_trainers": {
+            "nrms": ("recommender_module.ebnerd_specific.nrms_ebnerd", "run"),
+            "lstur": ("recommender_module.ebnerd_specific.lstur_ebnerd", "run"),
+        },
+        # Split sub-folders under data/datasets/ebnerd/ (each holds
+        # behaviors.parquet + history.parquet); the dev split is "behaviors" above.
+        "train_split": "train",
         # "precomputed": one ready-made document embedding per article, read
         # straight from contrastive_vector.parquet (768-dim contrastive vectors).
         "content_diversity": {
@@ -82,7 +99,12 @@ DATASETS = {
         # NRMS / LSTUR, retrained on mind_news by the same scripts MIND uses (the
         # pipeline hands them the mind_news paths). Their full-rank prediction
         # files aren't shipped; the pipeline builds them on demand.
-        "model_recs": ["nrms", "lstur"],
+        "model_recs": ["nrms", "lstur", "naml"],
+        "model_trainers": {
+            "nrms": ("recommender_module.mind_specific.nrms_mind", "run"),
+            "lstur": ("recommender_module.mind_specific.lstur_mind", "run"),
+            "naml": ("recommender_module.mind_specific.naml_mind", "run"),
+        },
         "train_split": "MINDnews_train",
         # mind_news keeps its own copy of the utils bundle (see "prepare"), so its
         # embeddings are read from the dataset's own utils/ like MIND's.

@@ -7,15 +7,19 @@ import json
 from data.datasets.ebnerd.utils.utils import convert_to_binary
 from data.datasets.ebnerd.utils.protocols import Metric
 
-from data.datasets.ebnerd.utils import (
+# Import the metric functions from their leaf modules rather than the
+# `data.datasets.ebnerd.utils` package root. The package __init__ imports this
+# module *first* (before its `from ._sklearn import *` etc. lines run), so pulling
+# these names from the package root here causes a circular import — "cannot import
+# name 'mean_squared_error' from partially initialized module".
+from data.datasets.ebnerd.utils._sklearn import (
     mean_squared_error,
     accuracy_score,
     roc_auc_score,
-    ndcg_score,
-    mrr_score,
     log_loss,
     f1_score,
 )
+from data.datasets.ebnerd.utils._ranking import ndcg_score, mrr_score
 
 
 class AccuracyScore(Metric):

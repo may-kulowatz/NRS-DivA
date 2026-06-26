@@ -29,9 +29,12 @@ paths). `expensive = True` marks the model recommenders (NRMS / LSTUR) whose
   rank-based `build_user_map` via `_RankRecommender`.
 - `GroundTruthRecommender` — writes `ground_truth.txt` at the dataset root and
   builds its map straight from that top-k file.
-- `ModelRecommender` — trains on demand via the `mind_specific/` scripts (the
-  `_MODEL_TRAINERS` dispatch); imported lazily so TensorFlow is only needed when a
-  model is actually (re)trained.
+- `ModelRecommender` — trains on demand via a per-dataset training script, looked
+  up in `RunContext.model_trainers` (from the dataset config's `"model_trainers"`
+  map). The same model name can map to different scripts per dataset — the
+  MIND-format datasets use `mind_specific/`, eb-nerd uses `ebnerd_specific/`. The
+  script is imported lazily, so TensorFlow is only pulled in when a model is
+  actually (re)trained.
 - `build_recommenders(model_recs)` — returns a dataset's recommenders in
   scoring/display order: random, popular, its models, then ground truth.
 

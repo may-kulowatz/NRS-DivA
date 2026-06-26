@@ -43,15 +43,19 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD", "mind_news": "MIND-News"}
 
 RECOMMENDERS = {
-    "MIND": ["random", "popular", "nrms", "lstur", "ground_truth"],
-    "ebnerd": ["random", "popular", "ground_truth"],
-    "mind_news": ["random", "popular", "nrms", "lstur", "ground_truth"],
+    "MIND": ["random", "popular", "nrms", "lstur", "naml", "ground_truth"],
+    "ebnerd": ["random", "popular", "nrms", "lstur", "ground_truth"],
+    "mind_news": ["random", "popular", "nrms", "lstur", "naml", "ground_truth"],
 }
+# Every recommender across datasets, in display order. A dataset that doesn't
+# support one (e.g. LSTUR / NAML on eb-nerd) shows it greyed-out, not hidden.
+ALL_RECOMMENDERS = ["random", "popular", "nrms", "lstur", "naml", "ground_truth"]
 REC_LABELS = {
     "random": "Random",
     "popular": "Popular",
     "nrms": "NRMS",
     "lstur": "LSTUR",
+    "naml": "NAML",
     "ground_truth": "Ground truth",
 }
 
@@ -106,14 +110,21 @@ RECOMMENDER_TEXT = {
         "**NRMS** — a neural recommender (*Neural News Recommendation with "
         "Multi-Head Self-Attention*). It builds a user representation from the "
         "articles in their history and scores each candidate by predicted "
-        "relevance. Available for the MIND-based datasets (MIND, MIND-News)."
+        "relevance. Available for MIND, MIND-News and EB-NeRD; trained on demand."
     ),
     "lstur": (
         "**LSTUR** — a neural recommender (*Neural News Recommendation with "
         "Long- and Short-term User Representations*). It combines a long-term "
         "user embedding with a short-term interest built from the user's recent "
         "reading history, then scores each candidate by predicted relevance. "
-        "Available for the MIND-based datasets (MIND, MIND-News)."
+        "Available for MIND, MIND-News and EB-NeRD; trained on demand."
+    ),
+    "naml": (
+        "**NAML** — a neural recommender (*Neural News Recommendation with "
+        "Attentive Multi-View Learning*). It encodes each article from several "
+        "views — title, body, category and sub-category — and scores candidates "
+        "against a user vector built from their reading history. Available for the "
+        "MIND-based datasets (MIND, MIND-News); trained on demand."
     ),
     "ground_truth": (
         "**Ground truth** — not a recommender but the reference point: the articles "
@@ -247,6 +258,35 @@ def read_score(dataset, recommender, metric):
     return value, None
 
 
+def available_metrics(dataset):
+    """Diversity metrics that *apply* to a dataset. Topic always applies; the
+    content metrics need article embeddings (a `content_diversity` config)."""
+    metrics = ["topic"]
+    if DATASETS[dataset]["content_diversity"] is not None:
+        metrics += ["content", "content_normalized"]
+    return metrics
+
+
+def _dataset_scores(dataset):
+    """The dataset's {recommender: {metric_key: value}} scores, or {} if none yet."""
+    return _load_scores(os.path.join(output_dir(dataset), "diversity_scores.json"))
+
+
+def enabled_recommenders(dataset):
+    """Recommenders to leave clickable: applicable to the dataset *and* already
+    scored. Ones that don't apply, or haven't been run/scored yet, are greyed-out."""
+    scored = {rec for rec, metrics in _dataset_scores(dataset).items() if metrics}
+    return [r for r in RECOMMENDERS[dataset] if r in scored]
+
+
+def enabled_metrics(dataset):
+    """Metrics to leave clickable: applicable to the dataset *and* already computed
+    for at least one recommender. Ones not applicable, or not calculated yet, are
+    greyed-out."""
+    present = {k for metrics in _dataset_scores(dataset).values() for k in metrics}
+    return [m for m in available_metrics(dataset) if _CACHE_KEY[m] in present]
+
+
 # ---------------------------------------------------------------------------
 # Reactive state
 # ---------------------------------------------------------------------------
@@ -257,25 +297,39 @@ metric = solara.reactive("topic")
 
 def select_dataset(value):
     dataset.set(value)
-    # Keep the recommender valid for the new dataset (e.g. NRMS only on MIND).
-    if recommender.value not in RECOMMENDERS[value]:
-        recommender.set(RECOMMENDERS[value][0])
+    # Keep the selection valid for the new dataset so the highlighted pill is never a
+    # greyed-out one: prefer an option that's clickable (applicable + has data), but
+    # fall back to any applicable one if the dataset has no scores yet.
+    recs = enabled_recommenders(value) or RECOMMENDERS[value]
+    if recommender.value not in recs:
+        recommender.set(recs[0])
+    mets = enabled_metrics(value) or available_metrics(value)
+    if metric.value not in mets:
+        metric.set(mets[0])
 
 
 # ---------------------------------------------------------------------------
 # Reusable UI pieces
 # ---------------------------------------------------------------------------
 @solara.component
-def PillGroup(options, selected, labels, on_select):
-    """A row of pill-shaped, single-select buttons."""
+def PillGroup(options, selected, labels, on_select, enabled=None):
+    """A row of pill-shaped, single-select buttons.
+
+    `enabled` (optional) is the subset of `options` that apply right now; options
+    outside it are rendered greyed-out and unclickable — e.g. a recommender or
+    diversity metric not available for the selected dataset. When `enabled` is
+    None every option is clickable.
+    """
     with solara.Row(style={"flex-wrap": "wrap", "gap": "8px", "margin-bottom": "8px"}):
         for opt in options:
-            is_selected = selected == opt
+            is_enabled = enabled is None or opt in enabled
+            is_selected = is_enabled and selected == opt
             solara.Button(
                 labels.get(opt, opt),
                 on_click=lambda opt=opt: on_select(opt),
                 color="primary" if is_selected else None,
                 outlined=not is_selected,
+                disabled=not is_enabled,
                 classes=["rounded-pill", "text-none"],
             )
 
@@ -312,7 +366,8 @@ def Page():
                 ):
                     with solara.Column():
                         PillGroup(
-                            RECOMMENDERS[dataset.value], recommender.value, REC_LABELS, recommender.set
+                            ALL_RECOMMENDERS, recommender.value, REC_LABELS, recommender.set,
+                            enabled=enabled_recommenders(dataset.value),
                         )
                         solara.Markdown(RECOMMENDER_TEXT[recommender.value])
 
@@ -320,7 +375,10 @@ def Page():
                     f"Diversity Score  ·  {METRIC_LABELS[metric.value]}", expand=True
                 ):
                     with solara.Column():
-                        PillGroup(METRICS, metric.value, METRIC_LABELS, metric.set)
+                        PillGroup(
+                            METRICS, metric.value, METRIC_LABELS, metric.set,
+                            enabled=enabled_metrics(dataset.value),
+                        )
                         solara.Markdown(METRIC_TEXT[metric.value])
                         value, message = read_score(dataset.value, recommender.value, metric.value)
                         ScoreCard(value, message)

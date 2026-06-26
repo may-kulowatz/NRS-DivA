@@ -15,6 +15,6 @@ from ._ranking import *
 from ._sklearn import *
 
 # from .npa import NPAModel
-# from .lstur import LSTURModel
+from .lstur import LSTURModel
 from .nrms import NRMSModel
 # from .naml import NAMLModel
