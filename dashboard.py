@@ -172,10 +172,23 @@ def _processed_path(dataset, recommender):
 
 @functools.lru_cache(maxsize=None)
 def _get_titles(dataset):
-    """Load (and cache) {article_id: title} via the dataset's adapter."""
+    """Load (and cache) {article_id: title} via the dataset's adapter.
+
+    Titles come from the raw dataset files under ``data/datasets/`` — which are
+    *optional* for the dashboard (only the Examples panel uses them, purely for
+    nicer labels). If they are absent — e.g. you kept only the processed pipeline
+    outputs and deleted the raw inputs — return an empty map instead of raising;
+    the article lists then fall back to showing article ids rather than the whole
+    panel erroring out. A corrupt/unreadable file is treated the same way.
+    """
     cfg = DATASETS[dataset]
     articles_file = os.path.join(input_dir(dataset), *cfg["articles"])
-    return cfg["adapter"].load_titles(articles_file)
+    if not os.path.exists(articles_file):
+        return {}
+    try:
+        return cfg["adapter"].load_titles(articles_file)
+    except Exception:
+        return {}
 
 
 @functools.lru_cache(maxsize=None)
