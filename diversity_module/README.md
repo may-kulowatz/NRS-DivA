@@ -47,9 +47,6 @@ Average of `unique topics / total topic assignments` across qualifying users.
   - Returns `0.0` when no user qualifies. For single-topic datasets (MIND) this
     reduces to `unique topics / number of articles`.
 
-> Running this file directly (`__main__`) prints topic diversity for the MIND
-> random / popular / ground-truth processed files, if present.
-
 ---
 
 ## `content_diversity.py`
@@ -98,10 +95,6 @@ English word embeddings unusable for eb-nerd's Danish titles).
     `< 2` embeddable articles are skipped.
   - Returns `0.0` when no user qualifies. Zero-norm vectors are guarded against
     division-by-zero in the cosine computation.
-
-> Running this file directly (`__main__`) loads the MIND dev embeddings and
-> prints content diversity for the random / popular / nrms / lstur / ground-truth
-> processed files.
 
 ---
 

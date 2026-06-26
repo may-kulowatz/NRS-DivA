@@ -1,6 +1,5 @@
 # TODO: verify!! Also, add license and information about where this came from.
 
-import os
 import re
 import pickle
 
@@ -102,29 +101,3 @@ def content_diversity(user_articles_file, news_embeddings):
             continue
         per_user.append(_ild(vectors))
     return sum(per_user) / len(per_user) if per_user else 0.0
-
-
-if __name__ == "__main__":
-    _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    in_dir = os.path.join(_project_dir, "data", "datasets", "mind")
-
-    news_embeddings = load_news_embeddings(
-        os.path.join(in_dir, "MINDsmall_dev", "news.tsv"),
-        os.path.join(in_dir, "utils", "embedding.npy"),
-        os.path.join(in_dir, "utils", "word_dict.pkl"),
-    )
-
-    pred_dir = os.path.join(
-        _project_dir, "data", "data_processed", "mind", "predictions_processed"
-    )
-    files = {
-        "random":       os.path.join(pred_dir, "prediction_processed_random.txt"),
-        "popular":      os.path.join(pred_dir, "prediction_processed_popular.txt"),
-        "nrms":         os.path.join(pred_dir, "prediction_processed_nrms.txt"),
-        "lstur":        os.path.join(pred_dir, "prediction_processed_lstur.txt"),
-        "ground_truth": os.path.join(pred_dir, "processed_ground_truth.txt"),
-    }
-
-    for name, path in files.items():
-        print(f"\n=== {name} ===")
-        print(f"  Content diversity (ILD):      {content_diversity(path, news_embeddings):.4f}")

@@ -511,8 +511,14 @@ def ExamplesPanel(dataset, recommender):
     clicked_map = _articles_for_user(dataset, recommender, "clicked")
     rec_map = _articles_for_user(dataset, recommender, "recommended")
 
-    # Hooks must run unconditionally (no early return before this).
-    users = sorted(set(clicked_map) & set(rec_map)) if clicked_map and rec_map else []
+    # Hooks must run unconditionally (no early return before this). Only show
+    # users that actually contribute to the diversity score — i.e. with at least
+    # two clicked articles (single-click users are excluded from the metrics, so
+    # showing one here would be misleading).
+    users = sorted(
+        u for u in (set(clicked_map) & set(rec_map))
+        if len(clicked_map[u][0]) >= 2
+    ) if clicked_map and rec_map else []
     counter = example_reshuffle.value
     user = solara.use_memo(
         lambda: random.choice(users) if users else None,

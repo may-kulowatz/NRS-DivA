@@ -1,6 +1,3 @@
-import os
-
-
 def _parse_user_articles(user_articles_file):
     users = {}
     with open(user_articles_file, encoding="utf-8") as f:
@@ -35,20 +32,3 @@ def topic_diversity(user_articles_file):
             continue
         per_user.append(len(set(flat)) / len(flat))
     return sum(per_user) / len(per_user) if per_user else 0.0
-
-
-if __name__ == "__main__":
-    _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    pred_dir = os.path.join(
-        _project_dir, "data", "data_processed", "mind", "predictions_processed"
-    )
-
-    files = {
-        "random":       os.path.join(pred_dir, "prediction_processed_random.txt"),
-        "popular":      os.path.join(pred_dir, "prediction_processed_popular.txt"),
-        "ground_truth": os.path.join(pred_dir, "processed_ground_truth.txt"),
-    }
-
-    for name, path in files.items():
-        print(f"\n=== {name} ===")
-        print(f"  Topic diversity:              {topic_diversity(path):.4f}")
