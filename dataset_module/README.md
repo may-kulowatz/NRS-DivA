@@ -6,21 +6,71 @@ Raw data
 ## OUTPUT
 normalized data for processing
 
-Dataset adapters. Each adapter parses one dataset's raw on-disk format into the
-normalized, dataset-agnostic structures defined in `common.py`, so that the
+Dataset adapters **and preparers**. For each dataset there is an *adapter* that
+parses its raw on-disk format into the normalized, dataset-agnostic structures
+defined in `common.py`, and a *preparer* that makes sure that raw format is
+present on disk in the first place (downloading or building it as needed). So the
 recommenders, output writers, and diversity metrics can be reused unchanged
-across datasets. **All dataset-specific format knowledge lives here and nowhere
-else.**
+across datasets. **All dataset-specific knowledge lives here and nowhere else.**
+
+Each dataset is its own package holding an `adapter` and a `prepare` module;
+`common.py`, `__main__.py`, and this README sit at the top level:
 
 ```
-common.py          Impression namedtuple (the shared in-memory contract)
-mind_adapter.py    MIND TSV files  -> normalized structures
-ebnerd_adapter.py  eb-nerd Parquet -> normalized structures
+common.py            Impression namedtuple + default_input_dir helper
+__main__.py          `python -m dataset_module` — prepare every dataset
+mind/
+  adapter.py         MIND TSV files  -> normalized structures
+  prepare.py         fetch MIND's dev split + utils bundle
+ebnerd/
+  adapter.py         eb-nerd Parquet -> normalized structures
+  prepare.py         verify eb-nerd's inputs are present
+mind_news/
+  adapter.py         mind_news TSV   -> normalized structures (subcategory as topic)
+  prepare.py         build mind_news from the sibling MIND data
 ```
 
-The two adapters expose the **same three functions** with the same signatures
-(`load_impressions`, `load_article_meta`, `load_titles`), so the pipeline can
-select an adapter by dataset and call them interchangeably.
+Every `adapter` exposes the **same three functions** with the same signatures
+(`load_impressions`, `load_article_meta`, `load_titles`); every `prepare` module
+likewise exposes the **same two functions** (`ensure_raw_data`, `ensure_utils`).
+So the pipeline can select a dataset's adapter and preparer and call them
+interchangeably (wired per-dataset in `config.DATASETS`).
+
+### Running independently
+
+`dataset_module` can fetch/build all of its data without running the pipeline:
+
+```
+python -m dataset_module                     # prepare every dataset
+python -m dataset_module.mind.prepare        # just MIND
+python -m dataset_module.mind_news.prepare   # build mind_news from local MIND data
+```
+
+---
+
+## Preparers (`<dataset>/prepare.py`)
+
+Each preparer is the acquisition analog of the matching adapter and exposes:
+
+### `ensure_raw_data(in_dir)`
+- **Post:** the *essential* inputs the adapter reads exist under `in_dir`,
+  fetching or building whatever is missing; raises if an input is missing and
+  cannot be obtained. Returns `True` if work happened, `False` if already present.
+  - `mind/prepare` downloads the MIND 'small' dev split.
+  - `ebnerd/prepare` only verifies the inputs are present (eb-nerd has no public
+    download URL) and raises with instructions if not.
+  - `mind_news/prepare` builds `MINDnews_{train,dev}` from the sibling `mind`
+    dataset (fetching MIND's dev split first if missing).
+
+### `ensure_utils(in_dir)`
+- **Post:** the *optional* content-diversity bundle exists under `in_dir/utils`,
+  fetched/built on demand. Returns `True` if work happened, `False` otherwise.
+  - `mind/prepare` downloads the embeddings/word-dict bundle.
+  - `mind_news/prepare` copies MIND's bundle into mind_news's own `utils/`.
+  - `ebnerd/prepare` is a no-op (content diversity is precomputed).
+
+Each module also defines `DIR` (its folder under `data/datasets/`) and a
+`__main__` block so it can be run standalone.
 
 ---
 
@@ -45,7 +95,7 @@ ids uniformly.
 
 ---
 
-## `mind_adapter.py`
+## `mind/adapter.py`
 
 Parses MIND's tab-separated `behaviors.tsv` / `news.tsv`. Inline `Nxxxx-1`
 (clicked) / `Nxxxx-0` (not clicked) labels are decoded here.
@@ -73,7 +123,7 @@ Parses MIND's tab-separated `behaviors.tsv` / `news.tsv`. Inline `Nxxxx-1`
 
 ---
 
-## `ebnerd_adapter.py`
+## `ebnerd/adapter.py`
 
 Parses eb-nerd's Parquet files into the **same** structures the MIND adapter
 produces. **Requires `pyarrow`** (read directly via `pyarrow.parquet`, not

@@ -52,8 +52,8 @@ only the way the `{article_id: vector}` map is built differs per dataset (two
 loaders below):
 
 - **MIND** — `load_news_embeddings`, averaging MIND word embeddings
-  (`embedding.npy` + `word_dict.pkl`, gitignored; fetched on demand by the root
-  `prepare.py`). **Requires** those utils.
+  (`embedding.npy` + `word_dict.pkl`, gitignored; fetched on demand by
+  `dataset_module/mind/prepare.py`). **Requires** those utils.
 - **eb-nerd** — `load_precomputed_embeddings`, reading ready-made document
   vectors from `contrastive_vector.parquet`. **Requires `pyarrow`.**
 

@@ -1,4 +1,18 @@
+import os
 from collections import namedtuple
+
+
+def default_input_dir(dir_name):
+    """Default on-disk input directory for a dataset's raw files.
+
+    Resolves ``<project>/data/datasets/<dir_name>`` from this file's location, so
+    the per-dataset prepare modules can locate their data when run standalone
+    (``python -m dataset_module``) without importing the root ``config`` (which
+    imports ``dataset_module`` and would create a cycle).
+    """
+    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_dir, "data", "datasets", dir_name)
+
 
 # Normalized, dataset-agnostic view of a single impression.
 #

@@ -26,16 +26,11 @@ from matplotlib.figure import Figure
 
 PRIMARY_GREEN = "#2e7d32"
 
-# The dashboard only reads what the pipeline produced — it reuses the pipeline's
-# dataset config and path helpers, plus the cache reader, but never the compute
-# or write helpers.
-from pipeline import (
-    DATASETS,
-    input_dir,
-    output_dir,
-    _file_sig,
-    _load_score_cache,
-)
+# The dashboard only reads what the pipeline produced — it reuses the dataset
+# config and path helpers, plus the score-cache reader, but never the compute or
+# write helpers.
+from config import DATASETS, input_dir, output_dir
+from score_cache import _file_sig, _load_score_cache
 from recommender_module.common.io import processed_filename
 from diversity_module.topic_diversity import _parse_user_articles
 
@@ -87,7 +82,7 @@ DATASET_TEXT = {
         "which the user clicked at least one article in the **news** category and "
         "that showed at least two news candidates; every non-news article is "
         "removed from the candidates and the user's history. It is built from the "
-        "MIND splits by `prepare_mind_news.py`. Because every article is in the "
+        "MIND splits by `dataset_module/mind_news/prepare.py`. Because every article is in the "
         "*news* category, topic diversity here is measured over the news "
         "**subcategories** instead."
     ),

@@ -1,9 +1,10 @@
 """Build the ``mind_news`` dataset: a news-only subset of MIND.
 
-``mind_news`` mirrors MIND's on-disk layout — a ``MINDnews_train`` and a
-``MINDnews_dev`` folder, each holding ``news.tsv`` + ``behaviors.tsv`` — but keeps
-far less of the data. It is the slice of MIND that is purely about the *news*
-category:
+The preparation analog of ``mind_news/adapter`` — it *derives* the mind_news
+files the adapter parses. ``mind_news`` mirrors MIND's layout — a
+``MINDnews_train`` and a ``MINDnews_dev`` folder, each holding ``news.tsv`` +
+``behaviors.tsv`` — but keeps far less of the data. It is the slice of MIND that
+is purely about the *news* category:
 
   * Only impressions in which the user actually **clicked at least one article
     whose category is "news"** are kept.
@@ -15,15 +16,24 @@ category:
   * ``news.tsv`` is reduced to just the news-category rows.
 
 The result is a smaller dataset, in the exact MIND format, that the rest of the
-pipeline can read through the ordinary MIND adapter (see the ``mind_news`` entry
-in ``pipeline.DATASETS``).
+pipeline can read through the mind_news adapter (see the ``mind_news`` entry in
+``config.DATASETS``).
 
 The source MIND splits live under ``data/datasets/mind`` (``MINDsmall_train`` /
 ``MINDsmall_dev``); the subset is written under ``data/datasets/mind_news``.
+
+Like the other ``dataset_module`` prepare modules it exposes ``ensure_raw_data``
+and ``ensure_utils``; both derive what they need from the sibling ``mind``
+dataset (via ``mind/prepare``), so mind_news ends up fully self-contained.
 """
 
 import os
 import shutil
+
+from dataset_module.common import default_input_dir
+
+# The dataset's folder name under data/datasets/ (its default standalone location).
+DIR = "mind_news"
 
 # MIND's parent category we keep; everything else is dropped.
 NEWS_CATEGORY = "news"
@@ -104,10 +114,9 @@ def build_mind_news(mind_dir, out_dir):
     ``out_dir`` is where MINDnews_train / MINDnews_dev are written.
     """
     # Make sure the source dev split exists, fetching it if missing (the train
-    # split has no auto-download, so it must already be present). Imported lazily
-    # to avoid an import cycle with prepare.ensure_raw_data.
-    from prepare import ensure_raw_data
-    ensure_raw_data("MIND", mind_dir)
+    # split has no auto-download, so it must already be present).
+    from dataset_module.mind import prepare as mind_prepare
+    mind_prepare.ensure_raw_data(mind_dir)
 
     for src, dst in _SPLITS:
         src_dir = os.path.join(mind_dir, src)
@@ -131,35 +140,7 @@ def build_mind_news(mind_dir, out_dir):
         print(f"  {dst}: kept {kept} impressions, {len(ids)} news articles")
 
 
-# If either of these is present we assume mind_news already has its own utils.
-_UTILS_REQUIRED = ("embedding.npy", "word_dict.pkl")
-
-
-def ensure_utils(in_dir):
-    """Ensure mind_news has its own ``utils`` bundle, copying MIND's if missing.
-
-    ``in_dir`` is the mind_news input dir (data/datasets/mind_news). mind_news is
-    treated as a fully independent dataset, so it keeps its own copy of the utils
-    (word embeddings, dictionaries, model .yaml configs) under ``in_dir/utils``
-    rather than reaching into the sibling MIND folder. The bundle is vocabulary-
-    level and identical to MIND's, so it is copied from there (downloading the
-    MIND utils first if they aren't present). Returns True if a copy happened.
-    """
-    utils_dir = os.path.join(in_dir, "utils")
-    if all(os.path.exists(os.path.join(utils_dir, f)) for f in _UTILS_REQUIRED):
-        return False
-
-    # Lazy import to avoid an import cycle with prepare.
-    from prepare import ensure_mind_utils
-    mind_dir = os.path.join(os.path.dirname(in_dir), "mind")
-    ensure_mind_utils(mind_dir)  # make sure the source bundle exists (download if needed)
-
-    print(f"Copying utils bundle into {utils_dir} ...")
-    shutil.copytree(os.path.join(mind_dir, "utils"), utils_dir, dirs_exist_ok=True)
-    return True
-
-
-def ensure_mind_news(in_dir):
+def ensure_raw_data(in_dir):
     """Ensure mind_news's splits exist under ``in_dir``, building them if missing.
 
     ``in_dir`` is the dataset's input directory (e.g. data/datasets/mind_news).
@@ -180,11 +161,35 @@ def ensure_mind_news(in_dir):
     return True
 
 
+# If either of these is present we assume mind_news already has its own utils.
+_UTILS_REQUIRED = ("embedding.npy", "word_dict.pkl")
+
+
+def ensure_utils(in_dir):
+    """Ensure mind_news has its own ``utils`` bundle, copying MIND's if missing.
+
+    ``in_dir`` is the mind_news input dir (data/datasets/mind_news). mind_news is
+    treated as a fully independent dataset, so it keeps its own copy of the utils
+    (word embeddings, dictionaries, model .yaml configs) under ``in_dir/utils``
+    rather than reaching into the sibling MIND folder. The bundle is vocabulary-
+    level and identical to MIND's, so it is copied from there (downloading the
+    MIND utils first if they aren't present). Returns True if a copy happened.
+    """
+    utils_dir = os.path.join(in_dir, "utils")
+    if all(os.path.exists(os.path.join(utils_dir, f)) for f in _UTILS_REQUIRED):
+        return False
+
+    from dataset_module.mind import prepare as mind_prepare
+    mind_dir = os.path.join(os.path.dirname(in_dir), "mind")
+    mind_prepare.ensure_utils(mind_dir)  # make sure the source bundle exists (download if needed)
+
+    print(f"Copying utils bundle into {utils_dir} ...")
+    shutil.copytree(os.path.join(mind_dir, "utils"), utils_dir, dirs_exist_ok=True)
+    return True
+
+
 if __name__ == "__main__":
-    _project_dir = os.path.dirname(os.path.abspath(__file__))
-    _datasets = os.path.join(_project_dir, "data", "datasets")
-    print("Building mind_news ...")
-    build_mind_news(
-        os.path.join(_datasets, "mind"),
-        os.path.join(_datasets, "mind_news"),
-    )
+    _in_dir = default_input_dir(DIR)
+    print(f"Preparing mind_news in {_in_dir} ...")
+    ensure_raw_data(_in_dir)
+    ensure_utils(_in_dir)

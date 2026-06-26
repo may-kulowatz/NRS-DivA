@@ -6,6 +6,7 @@ records (from `dataset_module`) and produce per-candidate scores or rankings;
 the writers in `common/io.py` aggregate those into the on-disk formats.
 
 ```
+base.py            Recommender interface + RunContext + build_recommenders
 common/            dataset-agnostic recommenders + shared writers
   ground_truth.py    the articles users actually clicked (reference baseline)
   random_rec.py      uniform random scores
@@ -15,8 +16,28 @@ ebnerd_specific/   eb-nerd NRMS training script (uses the ebrec library)
 mind_specific/     NRMS / LSTUR training scripts (parameterized by dataset path)
 ```
 
+## `base.py` — the recommender interface
+
+Wraps the `common/` recommenders behind one contract so the pipeline treats them
+uniformly. A `Recommender` knows how to `generate(ctx)` its raw prediction file
+and `build_user_map(ctx)` the processed per-user file; `RunContext` bundles the
+inputs (impressions, article metadata, output paths, and the model-training
+paths). `expensive = True` marks the model recommenders (NRMS / LSTUR) whose
+(re)build means training a network.
+
+- `RandomRecommender` / `PopularRecommender` — full-rank scorers; share the
+  rank-based `build_user_map` via `_RankRecommender`.
+- `GroundTruthRecommender` — writes `ground_truth.txt` at the dataset root and
+  builds its map straight from that top-k file.
+- `ModelRecommender` — trains on demand via the `mind_specific/` scripts (the
+  `_MODEL_TRAINERS` dispatch); imported lazily so TensorFlow is only needed when a
+  model is actually (re)trained.
+- `build_recommenders(model_recs)` — returns a dataset's recommenders in
+  scoring/display order: random, popular, its models, then ground truth.
+
 > Raw-input fetching (MIND dev split + utils bundle, eb-nerd presence check)
-> lives in `prepare.py` at the project root, not here — see that module.
+> lives in the per-dataset `dataset_module/<name>/prepare.py` modules, not here —
+> see that module.
 
 ---
 
@@ -105,8 +126,8 @@ dataset-specific file format. `numpy` and `tqdm` are required.
 
 ## `mind_specific/` — NRMS / LSTUR for MIND-format datasets
 
-> Raw-input fetching (the utils bundle, the dev split) lives in the root
-> `prepare.py` module, not here.
+> Raw-input fetching (the utils bundle, the dev split) lives in
+> `dataset_module/mind/prepare.py`, not here.
 
 ### `nrms_mind.py` / `lstur_mind.py`
 

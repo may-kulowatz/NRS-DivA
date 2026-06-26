@@ -1,222 +1,36 @@
 """End-to-end pipeline: load a dataset, run the baseline recommenders, write
 prediction / processed files, and report diversity scores.
 
+The supporting concerns live in their own modules: the dataset registry and path
+helpers in ``config.py``, the recommender interface in
+``recommender_module/base.py``, the score cache in ``score_cache.py``, and the
+interactive front-end in ``cli.py``. This module is just the orchestration that
+ties them together.
 """
 
-import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from dataset_module import mind_adapter, ebnerd_adapter, mind_news_adapter
-from recommender_module.common.ground_truth import extract_ground_truth, save_ground_truth
-from recommender_module.common.random_rec import random_recommend
-from recommender_module.common.popular_rec import popular_recommend
-from recommender_module.common.io import (
-    processed_filename,
-    save_predictions,
-    save_user_article_map,
-    save_user_article_map_from_ranks,
+from config import DATASETS, DATA_ROOT, input_dir, output_dir
+from recommender_module.base import build_recommenders, RunContext
+from score_cache import (
+    MetricUnavailable,
+    _compute_run_scores,
+    _load_score_cache,
+    _save_score_cache,
+    _stale,
 )
-# Raw-data fetchers: ensure_raw_data guarantees the essential inputs up front;
-# ensure_mind_utils is wired in per-dataset via the "prepare" config hook for the
-# optional (content-diversity) embeddings.
-from prepare import ensure_raw_data, ensure_mind_utils
-from prepare_mind_news import ensure_utils as ensure_mind_news_utils
+# Each dataset's preparation is driven through its config "prepare" module:
+# ensure_raw_data guarantees the essential inputs up front; ensure_utils fetches
+# the optional content-diversity bundle on demand.
 from diversity_module.topic_diversity import topic_diversity
 from diversity_module.content_diversity import (
     content_diversity,
     load_news_embeddings,
     load_precomputed_embeddings,
 )
-
-
-# ---------------------------------------------------------------------------
-# Dataset configuration
-# ---------------------------------------------------------------------------
-# Each entry describes a dataset's on-disk folder name ("dir"), where its raw
-# input files live (relative to data/datasets/<dir>/) and which optional steps
-# apply to it. Paths are tuples joined with os.path.join so they work on any
-# platform. Generated outputs go to data/data_processed/<dir>/ (see output_dir).
-DATASETS = {
-    "MIND": {
-        "dir": "mind",
-        "adapter": mind_adapter,
-        "behaviors": ("MINDsmall_dev", "behaviors.tsv"),
-        "articles": ("MINDsmall_dev", "news.tsv"),
-        # MIND ships pre-computed NRMS and LSTUR prediction files plus the
-        # embeddings/word-dict that content diversity needs.
-        "model_recs": ["nrms", "lstur"],
-        # Training split the model scripts read when a prediction file must be
-        # (re)built; the dev split is taken from "behaviors" above.
-        "train_split": "MINDsmall_train",
-        # "word_average": each article vector is the mean of its title's word
-        # embeddings, built from the (gitignored) utils bundle.
-        "content_diversity": {
-            "kind": "word_average",
-            "embedding": ("utils", "embedding.npy"),
-            "word_dict": ("utils", "word_dict.pkl"),
-        },
-        # Fetches the (gitignored) embeddings/dicts on demand before content
-        # diversity reads them. Called with the dataset's input_dir.
-        "prepare": ensure_mind_utils,
-    },
-    "ebnerd": {
-        "dir": "ebnerd",
-        "adapter": ebnerd_adapter,
-        "behaviors": ("validation", "behaviors.parquet"),
-        "articles": ("articles.parquet",),
-        # eb-nerd ships no model prediction files, so the model recommenders are
-        # skipped. Topic diversity uses the multi-valued `topics` field instead.
-        "model_recs": [],
-        # "precomputed": one ready-made document embedding per article, read
-        # straight from contrastive_vector.parquet (768-dim contrastive vectors).
-        "content_diversity": {
-            "kind": "precomputed",
-            "vectors": ("contrastive_vector.parquet",),
-        },
-        # contrastive_vector.parquet is shipped with the dataset, not fetched.
-        "prepare": None,
-    },
-    "mind_news": {
-        "dir": "mind_news",
-        # Every article is in the "news" category, so the adapter promotes each
-        # article's subcategory into the topic slot — topic diversity then measures
-        # variety among news subcategories.
-        "adapter": mind_news_adapter,
-        # A news-only subset of MIND built by prepare_mind_news: every impression
-        # kept clicked at least one "news" article and showed >=2 news candidates,
-        # with all non-news articles stripped from the candidates and history.
-        "behaviors": ("MINDnews_dev", "behaviors.tsv"),
-        "articles": ("MINDnews_dev", "news.tsv"),
-        # NRMS / LSTUR, retrained on mind_news by the same scripts MIND uses (the
-        # pipeline hands them the mind_news paths). Their full-rank prediction
-        # files aren't shipped; the pipeline builds them on demand.
-        "model_recs": ["nrms", "lstur"],
-        "train_split": "MINDnews_train",
-        # mind_news keeps its own copy of the utils bundle (see "prepare"), so its
-        # embeddings are read from the dataset's own utils/ like MIND's.
-        "content_diversity": {
-            "kind": "word_average",
-            "embedding": ("utils", "embedding.npy"),
-            "word_dict": ("utils", "word_dict.pkl"),
-        },
-        # Builds mind_news's own utils bundle on demand before content diversity
-        # reads it (the dataset splits themselves are built by ensure_raw_data).
-        "prepare": ensure_mind_news_utils,
-    },
-}
-
-
-_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_ROOT = os.path.join(_PROJECT_DIR, "data")
-
-
-def input_dir(dataset, data_root=DATA_ROOT):
-    """Directory holding a dataset's raw input files."""
-    return os.path.join(data_root, "datasets", DATASETS[dataset]["dir"])
-
-
-def output_dir(dataset, data_root=DATA_ROOT):
-    """Directory holding a dataset's generated outputs."""
-    return os.path.join(data_root, "data_processed", DATASETS[dataset]["dir"])
-
-
-# Model name -> (module path, function) of the training script that builds its
-# prediction file. Imported lazily and only when a prediction file is missing,
-# because the scripts pull in TensorFlow + the recommenders library.
-_MODEL_TRAINERS = {
-    "nrms": ("recommender_module.mind_specific.nrms_mind", "run"),
-    "lstur": ("recommender_module.mind_specific.lstur_mind", "run"),
-}
-
-
-def _train_model(name, dataset_dir, train_split, dev_split, prediction_file):
-    """Hand a dataset's paths to a model's training script to build its
-    prediction file. Returns True if the file now exists."""
-    import importlib
-    module_path, fn_name = _MODEL_TRAINERS[name]
-    trainer = getattr(importlib.import_module(module_path), fn_name)
-    trainer(dataset_dir, train_split, dev_split, prediction_file)
-    return os.path.exists(prediction_file)
-
-
-def _stale(output, *inputs):
-    """True if output is missing or older than any existing input.
-
-    Lets a derived file be rebuilt when its source changed, instead of being
-    skipped just because some version of it already exists.
-    """
-    if not os.path.exists(output):
-        return True
-    out_mtime = os.path.getmtime(output)
-    return any(os.path.exists(i) and os.path.getmtime(i) > out_mtime for i in inputs)
-
-
-# ---------------------------------------------------------------------------
-# Diversity-score cache
-# ---------------------------------------------------------------------------
-# Computing the diversity scores is the only pipeline step with no file output,
-# so without a cache it re-runs on every invocation even when nothing changed.
-# We persist scores to predictions/diversity_scores.json, keyed per recommender
-# and metric, alongside a signature of the user-article file the score was
-# computed from. A score is reused as long as that signature still matches.
-def _file_sig(path):
-    """Cheap change-signature for a file: modification time + size."""
-    st = os.stat(path)
-    return f"{st.st_mtime_ns}-{st.st_size}"
-
-
-def _load_score_cache(path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _save_score_cache(path, cache):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2)
-
-
-class MetricUnavailable(Exception):
-    """A metric's inputs couldn't be obtained (e.g. embeddings can't be
-    downloaded). The metric is skipped for the affected runs rather than failing
-    the whole pipeline."""
-
-
-def _compute_run_scores(path, metric_defs, prev_cache, force=False):
-    """Compute (or reuse) every metric for one user-article file.
-
-    metric_defs : list of (metric_key, fn) where fn(path) -> float.
-    prev_cache  : the cached {metric_key: {"value", "sig"}} for this run.
-    force       : when True, recompute every metric even if the cached signature
-                  still matches (the interactive "recalculate diversity" option).
-
-    Returns (scores, cache, n_computed): scores is {metric_key: value} for
-    display; cache is the refreshed {metric_key: {"value", "sig"}} to persist;
-    n_computed counts how many metrics were actually (re)calculated. A metric
-    whose fn raises MetricUnavailable is skipped (left out of scores/cache) so
-    the others still compute.
-    """
-    sig = _file_sig(path)
-    scores, cache, n_computed = {}, {}, 0
-    for key, fn in metric_defs:
-        prev = prev_cache.get(key)
-        if not force and prev is not None and prev.get("sig") == sig:
-            value = prev["value"]
-        else:
-            try:
-                value = fn(path)
-            except MetricUnavailable as exc:
-                print(f"  Skipping {key}: {exc}")
-                continue
-            n_computed += 1
-        scores[key] = value
-        cache[key] = {"value": value, "sig": sig}
-    return scores, cache, n_computed
 
 
 def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
@@ -250,9 +64,9 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     out_dir = output_dir(dataset, data_root)
 
     # Make sure the dataset's essential raw inputs exist before anything reads
-    # them, fetching whatever is missing (prepare.ensure_raw_data). The optional
-    # MIND embeddings are fetched later, lazily, via the "prepare" hook.
-    ensure_raw_data(dataset, in_dir)
+    # them, fetching/building whatever is missing. The optional content-diversity
+    # bundle is fetched later, lazily, via the same prepare module's ensure_utils.
+    cfg["prepare"].ensure_raw_data(in_dir)
 
     behaviors_file = os.path.join(in_dir, *cfg["behaviors"])
     articles_file = os.path.join(in_dir, *cfg["articles"])
@@ -267,79 +81,60 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     os.makedirs(raw_dir, exist_ok=True)
     os.makedirs(processed_dir, exist_ok=True)
 
-    gt_file               = os.path.join(out_dir, "ground_truth.txt")
-    random_file           = os.path.join(raw_dir, "prediction_random.txt")
-    popular_file          = os.path.join(raw_dir, "prediction_popular.txt")
-    processed_gt      = os.path.join(processed_dir, processed_filename("ground_truth"))
-    processed_random  = os.path.join(processed_dir, processed_filename("random"))
-    processed_popular = os.path.join(processed_dir, processed_filename("popular"))
-
-    model_paths = {
-        name: {
-            "pred":      os.path.join(raw_dir, f"prediction_{name}.txt"),
-            "processed": os.path.join(processed_dir, processed_filename(name)),
-        }
-        for name in cfg["model_recs"]
-    }
-
     # Load the dataset once; every step below reuses these in-memory structures.
     impressions = adapter.load_impressions(behaviors_file)
     article_meta = adapter.load_article_meta(articles_file)
 
+    # The recommenders this dataset has, in scoring/display order (random, popular,
+    # its models..., ground_truth), plus the shared context they each operate on.
+    recommenders = build_recommenders(cfg["model_recs"])
+    ctx = RunContext(
+        impressions=impressions, article_meta=article_meta,
+        out_dir=out_dir, raw_dir=raw_dir, processed_dir=processed_dir,
+        seed=seed, in_dir=in_dir,
+        train_split=cfg.get("train_split"), dev_split=cfg["behaviors"][0],
+    )
+
     # -------------------------------------------------------------------------
     # Generate raw predictions (forced ones always; missing ones per policy)
     # -------------------------------------------------------------------------
-    def _wanted(name, path, expensive=False):
-        if name in force_recommenders:
+    def _wanted(rec):
+        if rec.name in force_recommenders:
             return True
-        if os.path.exists(path):
+        if os.path.exists(rec.raw_path(ctx)):
             return False
-        return train_missing if expensive else generate_missing
+        return train_missing if rec.expensive else generate_missing
 
     print("Generating recommender predictions...")
-    if _wanted("ground_truth", gt_file):
-        print("  ground_truth: generating...")
-        save_ground_truth(extract_ground_truth(impressions), gt_file)
-    if _wanted("random", random_file):
-        print("  random: generating...")
-        save_predictions(random_recommend(impressions, seed=seed), random_file)
-    if _wanted("popular", popular_file):
-        print("  popular: generating...")
-        save_predictions(popular_recommend(impressions), popular_file)
-
-    # Model recommenders are trained by handing their dataset paths to the
-    # training scripts (needs TensorFlow); guarded so a missing/broken training
-    # environment skips the model instead of failing the whole run.
+    # The prepare hook (fetches the utils bundle a model trainer reads) is run at
+    # most once, just before the first model is trained.
     _utils_ready = False
-    for name in cfg["model_recs"]:
-        pred = model_paths[name]["pred"]
-        if not _wanted(name, pred, expensive=True):
+    for rec in recommenders:
+        if not _wanted(rec):
             continue
-        if cfg.get("prepare") and not _utils_ready:
-            cfg["prepare"](in_dir)   # ensure the utils bundle the trainer reads
-            _utils_ready = True
-        print(f"  {name}: training on '{dataset}' (needs TensorFlow; can take a while)...")
-        try:
-            _train_model(name, in_dir, cfg["train_split"], cfg["behaviors"][0], pred)
-        except Exception as exc:
-            print(f"    could not train {name} "
-                  f"({exc.__class__.__name__}: {exc}); skipping it.")
+        if rec.expensive:
+            # Model recommenders are trained by handing their dataset paths to the
+            # training scripts (needs TensorFlow); guarded so a missing/broken
+            # training environment skips the model instead of failing the run.
+            if not _utils_ready:
+                cfg["prepare"].ensure_utils(in_dir)
+                _utils_ready = True
+            print(f"  {rec.name}: training on '{dataset}' (needs TensorFlow; can take a while)...")
+            try:
+                rec.generate(ctx)
+            except Exception as exc:
+                print(f"    could not train {rec.name} "
+                      f"({exc.__class__.__name__}: {exc}); skipping it.")
+        else:
+            print(f"  {rec.name}: generating...")
+            rec.generate(ctx)
 
-    # Active recommenders = those whose raw prediction now exists. Ground truth is
-    # scored last (it's the reference), matching the original display order.
-    active = []  # (name, raw_path, processed_path, kind)
-    if os.path.exists(random_file):
-        active.append(("random", random_file, processed_random, "ranks"))
-    if os.path.exists(popular_file):
-        active.append(("popular", popular_file, processed_popular, "ranks"))
-    for name in cfg["model_recs"]:
-        if os.path.exists(model_paths[name]["pred"]):
-            active.append((name, model_paths[name]["pred"],
-                           model_paths[name]["processed"], "ranks"))
-    if os.path.exists(gt_file):
-        active.append(("ground_truth", gt_file, processed_gt, "gt"))
+    # Active recommenders = those whose raw prediction now exists (kept in the
+    # scoring order above, so ground truth is scored last as the reference).
+    active = [rec for rec in recommenders if os.path.exists(rec.raw_path(ctx))]
 
-    unavailable = [n for n in cfg["model_recs"] if not os.path.exists(model_paths[n]["pred"])]
+    unavailable = [rec.name for rec in recommenders
+                   if rec.expensive and not os.path.exists(rec.raw_path(ctx))]
     if unavailable:
         print("  (no prediction file for " + ", ".join(unavailable)
               + " — not scored; (re)run it to include it.)")
@@ -350,15 +145,12 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     # -------------------------------------------------------------------------
     # Processed per-user files (the diversity input)
     # -------------------------------------------------------------------------
-    to_build = [(n, r, p, k) for (n, r, p, k) in active
-                if force_processed or _stale(p, r)]
+    to_build = [rec for rec in active
+                if force_processed or _stale(rec.processed_path(ctx), rec.raw_path(ctx))]
     if to_build:
         print("Building processed per-user files...")
-        for name, raw, proc, kind in to_build:
-            if kind == "gt":
-                save_user_article_map(raw, article_meta, proc)
-            else:
-                save_user_article_map_from_ranks(raw, impressions, article_meta, proc)
+        for rec in to_build:
+            rec.build_user_map(ctx)
     else:
         print("Processed per-user files already up to date.")
 
@@ -386,8 +178,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
                     # word_average: the embeddings/dicts are large gitignored
                     # inputs; fetch them on demand (dataset-specific hook) before
                     # the first content-diversity compute.
-                    if cfg["prepare"] is not None:
-                        cfg["prepare"](in_dir)
+                    cfg["prepare"].ensure_utils(in_dir)
                     _embeddings["value"] = load_news_embeddings(
                         articles_file,
                         os.path.join(in_dir, *cd_cfg["embedding"]),
@@ -415,7 +206,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
 
     # Score every active recommender (in the active order: random, popular,
     # models..., ground_truth) from its processed per-user file.
-    runs = [(name, proc) for (name, _raw, proc, _kind) in active]
+    runs = [(rec.name, rec.processed_path(ctx)) for rec in active]
 
     cache_file = os.path.join(out_dir, "diversity_scores.json")
     old_cache = _load_score_cache(cache_file)
@@ -446,110 +237,8 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     return scores
 
 
-# ---------------------------------------------------------------------------
-# Interactive command-line front-end
-# ---------------------------------------------------------------------------
-def _ask_yes_no(question, default=False):
-    """Prompt for a yes/no answer; empty input takes the default."""
-    suffix = " [Y/n] " if default else " [y/N] "
-    while True:
-        try:
-            answer = input(question + suffix).strip().lower()
-        except EOFError:
-            return default
-        if not answer:
-            return default
-        if answer in ("y", "yes"):
-            return True
-        if answer in ("n", "no"):
-            return False
-        print("  Please answer 'y' or 'n'.")
-
-
-def _choose_dataset(argv):
-    """Pick the dataset: use a valid CLI argument, otherwise a numbered menu."""
-    names = list(DATASETS)
-    arg = argv[1] if len(argv) > 1 else None
-    if arg in DATASETS:
-        return arg
-    if arg is not None:
-        print(f"Unknown dataset {arg!r}.")
-    print("Available datasets:")
-    for i, name in enumerate(names, 1):
-        print(f"  {i}) {name}")
-    while True:
-        answer = input(f"Select a dataset [1-{len(names)} or name]: ").strip()
-        if answer in DATASETS:
-            return answer
-        if answer.isdigit() and 1 <= int(answer) <= len(names):
-            return names[int(answer) - 1]
-        print("  Invalid selection.")
-
-
-def interactive_main(argv):
-    """Interactive driver: choose a dataset, show what already exists, then ask
-    which recommenders to (re)run, whether to rebuild the processed files, and
-    whether to recompute the diversity scores — and run accordingly."""
-    dataset = _choose_dataset(argv)
-    cfg = DATASETS[dataset]
-    out_dir = output_dir(dataset)
-    raw_dir = os.path.join(out_dir, "predictions")
-    processed_dir = os.path.join(out_dir, "predictions_processed")
-    json_file = os.path.join(out_dir, "diversity_scores.json")
-
-    # Ground truth + the recommenders applicable to this dataset.
-    recommenders = ["ground_truth", "random", "popular"] + cfg["model_recs"]
-
-    def raw_path(name):
-        if name == "ground_truth":
-            return os.path.join(out_dir, "ground_truth.txt")
-        return os.path.join(raw_dir, f"prediction_{name}.txt")
-
-    def proc_path(name):
-        return os.path.join(processed_dir, processed_filename(name))
-
-    def mark(path):
-        return "present" if os.path.exists(path) else "missing"
-
-    # 1-3 — show what's already there for this dataset.
-    print(f"\n=== EchoBench pipeline — dataset '{dataset}' ===")
-    print("\nCurrent state:")
-    print(f"  diversity_scores.json : {mark(json_file)}")
-    print("  raw predictions:")
-    for name in recommenders:
-        print(f"      {name:<13}: {mark(raw_path(name))}")
-    print("  processed predictions:")
-    for name in recommenders:
-        print(f"      {name:<13}: {mark(proc_path(name))}")
-
-    # 4 — one question per recommender (default: build the missing cheap ones;
-    # models must be opted into explicitly because training is expensive).
-    print("\nWhich recommenders should be (re)run?")
-    force_recommenders = set()
-    for name in recommenders:
-        is_model = name in cfg["model_recs"]
-        missing = not os.path.exists(raw_path(name))
-        default = missing and not is_model
-        extra = " (trains a model, needs TensorFlow)" if is_model else ""
-        if _ask_yes_no(f"  (re)run {name}{extra}?", default=default):
-            force_recommenders.add(name)
-
-    # 3 / 5 — rebuild processed files, and recompute diversity.
-    force_processed = _ask_yes_no("\nRebuild processed per-user files?", default=False)
-    force_diversity = _ask_yes_no("(Re)calculate diversity scores?", default=False)
-
-    print()
-    run_pipeline(
-        dataset,
-        force_recommenders=force_recommenders,
-        force_processed=force_processed,
-        force_diversity=force_diversity,
-        # Only build what was explicitly asked for; the prompts already defaulted
-        # missing cheap recommenders to "yes".
-        generate_missing=False,
-        train_missing=False,
-    )
-
-
 if __name__ == "__main__":
+    # The interactive front-end lives in cli.py; imported here (lazily) so
+    # `python pipeline.py <dataset>` keeps working as the documented entry point.
+    from cli import interactive_main
     interactive_main(sys.argv)

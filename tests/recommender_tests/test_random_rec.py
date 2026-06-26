@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from dataset_module.mind_adapter import load_impressions, load_article_meta
+from dataset_module.mind.adapter import load_impressions, load_article_meta
 from recommender_module.common.random_rec import random_recommend
 from recommender_module.common.io import save_predictions_topk, save_user_article_map
 

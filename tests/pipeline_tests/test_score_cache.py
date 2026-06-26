@@ -1,4 +1,4 @@
-"""Tests for the diversity-score cache in pipeline.py.
+"""Tests for the diversity-score cache in score_cache.py.
 
 The cache exists so the score-calculation step (the only step with no file
 output) is not redone on every pipeline run. These tests exercise the cache
@@ -12,7 +12,7 @@ import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from pipeline import _compute_run_scores, _file_sig, _load_score_cache, _save_score_cache
+from score_cache import _compute_run_scores, _file_sig, _load_score_cache, _save_score_cache
 
 logger = logging.getLogger(__name__)
 

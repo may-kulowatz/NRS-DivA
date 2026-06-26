@@ -31,7 +31,7 @@ there are txt files already prepared. The pipeline will skip the prediction and 
   Generated outputs for both datasets live under `data/data_processed/<dataset>/`.
   For further information on this dataset, please check out the [documentation](https://recsys.eb.dk/dataset/).
 - **mind_news** (`data/datasets/mind_news/`) — a news-only subset of MIND, built
-  from the MIND splits by `prepare_mind_news.py` (`MINDnews_train` /
+  from the MIND splits by `dataset_module/mind_news/prepare.py` (`MINDnews_train` /
   `MINDnews_dev`). It keeps only impressions where the user clicked at least one
   article in the **news** category and that showed at least two news candidates,
   stripping every non-news article from the candidates and the user's history.
@@ -61,6 +61,23 @@ Each recommender produces a ranked top-k list per user impression
 Not all scores are compatible with all recommender systems!
 
 ## Software Architecture
+
+### Modules at the root
+The orchestration is split into small, single-purpose modules so each concern can
+be read and tested on its own:
+
+- `config.py` — the dataset registry (`DATASETS`) and the `input_dir` / `output_dir`
+  path helpers. Read-only consumers (e.g. the dashboard) import this without
+  pulling in the run machinery.
+- `recommender_module/base.py` — the `Recommender` interface (`random`, `popular`,
+  `ground_truth`, and the trained `nrms` / `lstur` models) plus the `RunContext`
+  they operate on. Each recommender knows how to generate its raw prediction file
+  and build its processed per-user file, so the pipeline iterates a list instead
+  of special-casing each one. Adding a recommender is a new class here.
+- `score_cache.py` — the diversity-score cache and file-staleness helpers.
+- `pipeline.py` — `run_pipeline`, the orchestration that ties the above together.
+- `cli.py` — the interactive front-end. `python pipeline.py [dataset]` delegates
+  to it, so the documented entry point is unchanged.
 
 ### Pipeline
 The pipeline does the following:

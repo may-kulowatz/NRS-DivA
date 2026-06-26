@@ -82,11 +82,11 @@ if __name__ == "__main__":
     # This script lives in recommender_module/mind_specific/, two levels below root.
     _project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     sys.path.insert(0, _project_dir)
-    from prepare import ensure_raw_data, ensure_mind_utils
+    from dataset_module.mind.prepare import ensure_raw_data, ensure_utils
 
     mind_dir = os.path.join(_project_dir, "data", "datasets", "mind")
-    ensure_raw_data("MIND", mind_dir)   # dev split (train split must already exist)
-    ensure_mind_utils(mind_dir)
+    ensure_raw_data(mind_dir)   # dev split (train split must already exist)
+    ensure_utils(mind_dir)
 
     prediction_file = os.path.join(
         _project_dir, "data", "data_processed", "mind", "predictions", "prediction_lstur.txt"
