@@ -30,11 +30,13 @@ from diversity_module.content_diversity import (
     load_news_embeddings,
     load_precomputed_embeddings,
 )
+from diversity_module.content_diversity_normalized import normalized_content_diversity
 
 
 def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
                  force_recommenders=None, force_processed=False,
-                 generate_missing=True, train_missing=True):
+                 generate_missing=True, train_missing=True,
+                 normalized_diversity=False, normalized_max_combinations=1000):
     """Run a dataset's recommenders + diversity scoring.
 
     By default a recommender's prediction is (re)built only when missing and its
@@ -52,6 +54,11 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
                          what force_recommenders asks for.
     train_missing      : auto-train a *model* recommender when its prediction file
                          is missing. Set False to only train what's forced.
+    normalized_diversity : also compute the (expensive, per-impression) normalized
+                         content-diversity metric for datasets that ship content
+                         embeddings. Off by default.
+    normalized_max_combinations : per-impression budget for the min/max estimate in
+                         the normalized metric (sampled above it; smaller = faster).
     """
     if dataset not in DATASETS:
         raise ValueError(f"Unknown dataset {dataset!r}; choose from {list(DATASETS)}")
@@ -205,12 +212,28 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
 
     # Score every active recommender (in the active order: random, popular,
     # models..., ground_truth) from its processed per-user file.
-    runs = [(rec.name, rec.processed_path(ctx)) for rec in active]
-
     scores_file = os.path.join(out_dir, "diversity_scores.json")
-    scores = {name: _compute_scores(path, metric_defs) for name, path in runs}
+    scores = {rec.name: _compute_scores(rec.processed_path(ctx), metric_defs)
+              for rec in active}
+
+    # Optional, expensive: normalized (EBNeRD-style) content diversity. Needs the
+    # candidate pools, so it works from each recommender's per-impression choices
+    # rather than the per-user file. Only when asked and embeddings are available.
+    if normalized_diversity and cd_cfg is not None:
+        print("  computing normalized content diversity (per-impression; can be slow)...")
+        try:
+            embeddings = get_embeddings()
+        except MetricUnavailable as exc:
+            print(f"    skipping content_diversity_normalized: {exc}")
+        else:
+            for rec in active:
+                scores[rec.name]["content_diversity_normalized"] = normalized_content_diversity(
+                    impressions, rec.recommended_by_impr(ctx), embeddings,
+                    max_combinations=normalized_max_combinations, seed=seed,
+                )
+
     _save_scores(scores_file, scores)
-    print(f"  scored {len(runs)} recommender(s).")
+    print(f"  scored {len(scores)} recommender(s).")
 
     print("\n=== Diversity Scores ===")
     for name, s in scores.items():
@@ -218,6 +241,8 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
         print(f"    Topic diversity:      {s['topic_diversity']:.4f}")
         if "content_diversity" in s:
             print(f"    Content diversity:    {s['content_diversity']:.4f}")
+        if "content_diversity_normalized" in s:
+            print(f"    Content div. (norm.): {s['content_diversity_normalized']:.4f}")
 
     return scores
 

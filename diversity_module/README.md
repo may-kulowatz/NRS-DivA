@@ -7,9 +7,17 @@ shape: average a per-user score across users, counting only users with **more
 than one click**, and return `0.0` when no user qualifies.
 
 ```
-topic_diversity.py     topic diversity (category-share metric)
-content_diversity.py   content diversity / intra-list diversity (ILD, embedding-based)
+topic_diversity.py               topic diversity (category-share metric)
+content_diversity.py             content diversity / intra-list diversity (ILD, embedding-based)
+content_diversity_normalized.py  normalized (EBNeRD-style) ILD, against the candidate pool
+content_diversity_ebnerd.py      EBNeRD IntralistDiversity class (used by the normalized metric)
 ```
+
+> **Granularity note:** `topic_diversity` and `content_diversity` read the
+> per-user files described below. `content_diversity_normalized` is the
+> exception — it needs each impression's **candidate pool**, so it works from
+> `Impression`s + per-impression recommendations, not the per-user files (see its
+> own section).
 
 ### The user-article file format (shared input)
 Every metric consumes a whitespace-delimited file with one line per user:
@@ -94,3 +102,37 @@ English word embeddings unusable for eb-nerd's Danish titles).
 > Running this file directly (`__main__`) loads the MIND dev embeddings and
 > prints content diversity for the random / popular / nrms / lstur / ground-truth
 > processed files.
+
+---
+
+## `content_diversity_normalized.py`
+
+Normalized intra-list content diversity (the EBNeRD-leaderboard metric). Plain
+ILD says how varied a recommended set is; this says how varied it could have been
+given the candidate pool, by normalizing **per impression**:
+
+```
+normalized = (ILD(recommended) - ILD_min) / (ILD_max - ILD_min)
+```
+
+where `ILD_min` / `ILD_max` are the least / most diverse selections of the same
+size from the impression's candidates, estimated by
+`content_diversity_ebnerd.IntralistDiversity._candidate_diversity`.
+
+### `normalized_content_diversity(impressions, recommended_by_impr, embeddings, *, lookup_key="vector", max_combinations=1000, seed=42)`
+- **Pre:** `impressions` are `Impression` records (carry `candidate_ids`);
+  `recommended_by_impr` is `{impr_id: [article_id, ...]}` (built by
+  `recommender_module/common/io.recommended_per_impression_from_*` / a
+  recommender's `recommended_by_impr(ctx)`); `embeddings` is a
+  `{article_id: vector}` map from either content loader.
+- **Post:** returns a `float` in `[0.0, 1.0]` (clipped — sampled min/max can sit
+  just inside the true range). An impression is scored only when its
+  recommendation has `≥ 2` embeddable articles **and** its pool has more
+  embeddable articles than were recommended; otherwise it is skipped. Returns
+  `0.0` when nothing is scorable.
+
+> **Expensive** (per impression it samples up to `max_combinations` candidate
+> subsets), so the pipeline computes it only when asked: `run_pipeline(...,
+> normalized_diversity=True)` or `python pipeline.py <dataset> --normalized`. It
+> is written to `diversity_scores.json` under the key
+> `content_diversity_normalized`.

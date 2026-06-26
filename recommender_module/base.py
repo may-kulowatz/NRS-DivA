@@ -26,6 +26,8 @@ from recommender_module.common.random_rec import random_recommend
 from recommender_module.common.popular_rec import popular_recommend
 from recommender_module.common.io import (
     processed_filename,
+    recommended_per_impression_from_ranks,
+    recommended_per_impression_from_topk,
     save_predictions,
     save_user_article_map,
     save_user_article_map_from_ranks,
@@ -76,6 +78,15 @@ class Recommender:
     def build_user_map(self, ctx):
         raise NotImplementedError
 
+    def recommended_by_impr(self, ctx):
+        """{impr_id: [article_id, ...]} this recommender chose per impression.
+
+        The per-impression view the normalized content-diversity metric needs (it
+        scores each recommended set against its impression's candidate pool),
+        unlike the per-user map which aggregates across impressions.
+        """
+        raise NotImplementedError
+
 
 class _RankRecommender(Recommender):
     """A recommender whose processed map is built from its full-rank file.
@@ -88,6 +99,9 @@ class _RankRecommender(Recommender):
         save_user_article_map_from_ranks(
             self.raw_path(ctx), ctx.impressions, ctx.article_meta, self.processed_path(ctx)
         )
+
+    def recommended_by_impr(self, ctx):
+        return recommended_per_impression_from_ranks(self.raw_path(ctx), ctx.impressions)
 
 
 class RandomRecommender(_RankRecommender):
@@ -121,6 +135,9 @@ class GroundTruthRecommender(Recommender):
 
     def build_user_map(self, ctx):
         save_user_article_map(self.raw_path(ctx), ctx.article_meta, self.processed_path(ctx))
+
+    def recommended_by_impr(self, ctx):
+        return recommended_per_impression_from_topk(self.raw_path(ctx))
 
 
 # Model name -> (module path, function) of the training script that builds its

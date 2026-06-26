@@ -105,31 +105,72 @@ def save_user_article_map(topk_file, article_meta, output_file):
     _write_user_article_map(selections(), article_meta, output_file)
 
 
-def save_user_article_map_from_ranks(
-    prediction_file, impressions, article_meta, output_file
-):
-    """Build the per-user map straight from a full-rank prediction file.
+def _topk_indices(ranks, k):
+    """Candidate indices of the k best-ranked items (rank 1 = best)."""
+    return np.argsort(ranks)[:k]
 
-    prediction_file : a recommender's full-rank output. The rank list is the last
-                      bracketed token, so both the model format ("impr_id [ranks]")
-                      and the random/popular format ("impr_id user_id [ranks]")
-                      parse the same way; the user_id always comes from the
-                      impressions, not the file.
 
-    K per impression is the number of clicks it kept. The selection matches the
-    old top-k step (np.argsort(ranks)[:k]); only the on-disk intermediate is gone.
+def _read_rank_file(prediction_file):
+    """Parse a full-rank prediction file into {impr_id: [rank, ...]}.
+
+    The rank list is the last bracketed token, so both the model format
+    ("impr_id [ranks]") and the random/popular format ("impr_id user_id [ranks]")
+    parse the same way.
     """
     pred_ranks = {}
     with open(prediction_file, encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split()
             pred_ranks[int(parts[0])] = list(map(int, parts[-1][1:-1].split(",")))
+    return pred_ranks
+
+
+def recommended_per_impression_from_ranks(prediction_file, impressions):
+    """{impr_id: [article_id, ...]} — the top-k a rank file chose per impression.
+
+    K per impression is the number of clicks it kept (``sum(imp.labels)``), the
+    same selection used to build the per-user map. Impressions absent from the
+    prediction file are omitted. The user_id is not needed here, so it is dropped.
+    """
+    pred_ranks = _read_rank_file(prediction_file)
+    recommended = {}
+    for imp in impressions:
+        ranks = pred_ranks.get(imp.impr_id)
+        if ranks is None:
+            continue
+        k = sum(imp.labels)
+        recommended[imp.impr_id] = [imp.candidate_ids[i] for i in _topk_indices(ranks, k)]
+    return recommended
+
+
+def recommended_per_impression_from_topk(topk_file):
+    """{impr_id: [article_id, ...]} from a "{impr_id} {user_id} [pos] [ids]" file.
+
+    Used for ground truth (and any top-k file): the chosen ids are the last
+    bracketed token, the impression id is column 0.
+    """
+    recommended = {}
+    with open(topk_file, encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split()
+            inner_ids = parts[3][1:-1]
+            recommended[int(parts[0])] = inner_ids.split(",") if inner_ids else []
+    return recommended
+
+
+def save_user_article_map_from_ranks(
+    prediction_file, impressions, article_meta, output_file
+):
+    """Build the per-user map straight from a full-rank prediction file.
+
+    prediction_file : a recommender's full-rank output. K per impression is the
+                      number of clicks it kept; the user_id always comes from the
+                      impressions, not the file.
+    """
+    recommended = recommended_per_impression_from_ranks(prediction_file, impressions)
 
     def selections():
         for imp in impressions:
-            ranks = pred_ranks.get(imp.impr_id, [])
-            k = sum(imp.labels)
-            top_k_idx = np.argsort(ranks)[:k]
-            yield imp.user_id, [imp.candidate_ids[i] for i in top_k_idx]
+            yield imp.user_id, recommended.get(imp.impr_id, [])
 
     _write_user_article_map(selections(), article_meta, output_file)

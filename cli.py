@@ -32,7 +32,9 @@ def _ask_yes_no(question, default=False):
 def _choose_dataset(argv):
     """Pick the dataset: use a valid CLI argument, otherwise a numbered menu."""
     names = list(DATASETS)
-    arg = argv[1] if len(argv) > 1 else None
+    # First positional argument that isn't a --flag (e.g. --normalized).
+    positionals = [a for a in argv[1:] if not a.startswith("--")]
+    arg = positionals[0] if positionals else None
     if arg in DATASETS:
         return arg
     if arg is not None:
@@ -55,6 +57,8 @@ def interactive_main(argv):
     run accordingly. Diversity scores are always recomputed from the processed
     files."""
     dataset = _choose_dataset(argv)
+    # Opt-in: also compute the expensive normalized content-diversity metric.
+    normalized = "--normalized" in argv
     cfg = DATASETS[dataset]
     out_dir = output_dir(dataset)
     raw_dir = os.path.join(out_dir, "predictions")
@@ -111,6 +115,7 @@ def interactive_main(argv):
         # missing cheap recommenders to "yes".
         generate_missing=False,
         train_missing=False,
+        normalized_diversity=normalized,
     )
 
 
