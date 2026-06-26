@@ -94,8 +94,10 @@ dataset-specific file format. `numpy` and `tqdm` are required.
 **`save_predictions(results, output_file)`**
 - **Pre:** `results` is an iterable of `(impr_id, user_id, scores)` with `scores`
   a 1-D array.
-- **Post:** writes one `"{impr_id} {user_id} [ranks]"` line per result; ranks are
-  a dense 1..N ranking of `scores` (rank 1 = highest score). Truncates the file.
+- **Post:** writes one `"{impr_id} [ranks]"` line per result; ranks are a dense
+  1..N ranking of `scores` (rank 1 = highest score). The `user_id` is not written
+  — every prediction file shares this layout with the model recommenders' output,
+  and readers take the user from the impressions. Truncates the file.
 
 **`save_predictions_topk(results, impressions, output_file)`**
 - **Pre:** `results` are scored results; `impressions` are the matching
@@ -115,10 +117,9 @@ dataset-specific file format. `numpy` and `tqdm` are required.
   `("unknown", "none")`.
 
 **`save_user_article_map_from_ranks(prediction_file, impressions, article_meta, output_file)`**
-- **Pre:** `prediction_file` is a full-rank prediction (the rank list is the
-  **last** bracketed token, so both `"impr_id [ranks]"` and
-  `"impr_id user_id [ranks]"` parse). `user_id` is always taken from
-  `impressions`, not the file.
+- **Pre:** `prediction_file` is a full-rank `"impr_id [ranks]"` prediction (only
+  the impression id and the **last** bracketed rank token are read). `user_id` is
+  always taken from `impressions`, not the file.
 - **Post:** writes the per-user map, selecting each impression's top-`k`
   candidates (`k` = number of clicks it received).
 

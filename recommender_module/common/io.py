@@ -28,11 +28,14 @@ def save_predictions(results, output_file):
     """Write full per-candidate rankings (rank 1 = highest score).
 
     results: iterable of (impr_id, user_id, scores) where scores is a 1-D array.
+    The user_id is *not* written: every prediction file uses the same
+    ``"{impr_id} [ranks]"`` layout (matching the model recommenders' output), and
+    downstream readers take the user from the impressions, not the file.
     """
     with open(output_file, "w", encoding="utf-8") as f:
-        for impr_id, user_id, scores in tqdm(results):
+        for impr_id, _user_id, scores in tqdm(results):
             ranks = (np.argsort(np.argsort(scores)[::-1]) + 1).tolist()
-            f.write(f"{impr_id} {user_id} [" + ",".join(map(str, ranks)) + "]\n")
+            f.write(f"{impr_id} [" + ",".join(map(str, ranks)) + "]\n")
 
 
 def save_predictions_topk(results, impressions, output_file):
@@ -113,9 +116,9 @@ def _topk_indices(ranks, k):
 def _read_rank_file(prediction_file):
     """Parse a full-rank prediction file into {impr_id: [rank, ...]}.
 
-    The rank list is the last bracketed token, so both the model format
-    ("impr_id [ranks]") and the random/popular format ("impr_id user_id [ranks]")
-    parse the same way.
+    Every prediction file uses the ``"impr_id [ranks]"`` layout (the impression id
+    first, the rank list as the last bracketed token), so only those two tokens are
+    read — robust to any extra columns a file might carry.
     """
     pred_ranks = {}
     with open(prediction_file, encoding="utf-8") as f:

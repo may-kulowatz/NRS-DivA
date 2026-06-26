@@ -135,10 +135,11 @@ def test_normalized_score_in_unit_range_random_vectors():
 
 def test_recommended_from_ranks_takes_topk_by_clicks(tmp_path):
     # Candidates [A,B,C], ranks [2,3,1] (C best, then A, then B); k = 2 clicks
-    # → top-2 candidates are C and A, in rank order.
+    # → top-2 candidates are C and A, in rank order. Prediction files are
+    # "{impr_id} [ranks]" (no user_id column).
     impressions = [_imp(1, ["A", "B", "C"], labels=[1, 0, 1])]
     pred = tmp_path / "prediction_random.txt"
-    pred.write_text("1 U1 [2,3,1]\n", encoding="utf-8")
+    pred.write_text("1 [2,3,1]\n", encoding="utf-8")
 
     recommended = recommended_per_impression_from_ranks(str(pred), impressions)
 
