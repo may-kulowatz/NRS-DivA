@@ -55,10 +55,11 @@ REC_LABELS = {
     "ground_truth": "Ground truth",
 }
 
-METRICS = ["topic", "content"]
+METRICS = ["topic", "content", "content_normalized"]
 METRIC_LABELS = {
     "topic": "Topic diversity",
     "content": "Content diversity (ILD)",
+    "content_normalized": "Content diversity (normalized)",
 }
 
 DATASET_TEXT = {
@@ -74,8 +75,9 @@ DATASET_TEXT = {
         "the tabloid *Ekstra Bladet*. Each impression lists the articles in view "
         "and which were clicked. Articles carry one **category** plus several "
         "free-text **topics**, along with richer signals (full body text, read "
-        "time, sentiment). No article embeddings are shipped for it, so only topic "
-        "diversity is computed."
+        "time, sentiment). It also ships ready-made 768-dimensional contrastive "
+        "document embeddings (`contrastive_vector.parquet`), so content diversity "
+        "is computed for it too, not just topic diversity."
     ),
     "mind_news": (
         "**MIND-News** — a news-only slice of MIND. It keeps only impressions in "
@@ -132,7 +134,16 @@ METRIC_TEXT = {
         "**Content diversity (ILD)** — *intra-list diversity*: 1 minus the average "
         "pairwise cosine similarity of the articles' title embeddings. It measures "
         "how semantically different the articles are, independent of category "
-        "labels. Needs embeddings, so MIND only."
+        "labels. Needs article embeddings."
+    ),
+    "content_normalized": (
+        "**Content diversity (normalized)** — the intra-list content diversity of "
+        "the recommended set, rescaled *per impression* against the most and least "
+        "diverse selections possible from that impression's candidate pool. 1.0 "
+        "means the recommender picked about as varied a set as the candidates "
+        "allowed; 0.0 about as uniform as possible. This isolates the recommender's "
+        "choice from how (un)diverse the candidates happened to be. Computed only "
+        "when the pipeline is run with `--normalized`."
     ),
 }
 
@@ -181,6 +192,7 @@ def _parse_user_articles_cached(path, sig):
 _CACHE_KEY = {
     "topic": "topic_diversity",
     "content": "content_diversity",
+    "content_normalized": "content_diversity_normalized",
 }
 
 
@@ -194,16 +206,22 @@ def read_score(dataset, recommender, metric):
     """
     cfg = DATASETS[dataset]
     # Metrics that simply don't apply to a dataset get an explanatory message,
-    # not a "run the pipeline" one — running it wouldn't produce them.
-    if metric == "content" and cfg["content_diversity"] is None:
+    # not a "run the pipeline" one — running it wouldn't produce them. The two
+    # content metrics both need article embeddings.
+    if metric in ("content", "content_normalized") and cfg["content_diversity"] is None:
         return None, (
-            f"Content diversity isn't available for {DATASET_LABELS[dataset]} — "
+            f"{METRIC_LABELS[metric]} isn't available for {DATASET_LABELS[dataset]} — "
             "no article embeddings are shipped for this dataset."
         )
 
+    # The normalized metric is opt-in, so the hint must include the flag that
+    # produces it; the others are emitted by a plain run.
+    generate_cmd = f"python pipeline.py {dataset}"
+    if metric == "content_normalized":
+        generate_cmd += " --normalized"
     not_generated = (
         f"No {METRIC_LABELS[metric].lower()} for '{REC_LABELS[recommender]}' on "
-        f"{DATASET_LABELS[dataset]} yet. Generate it with:  python pipeline.py {dataset}"
+        f"{DATASET_LABELS[dataset]} yet. Generate it with:  {generate_cmd}"
     )
     scores_file = os.path.join(output_dir(dataset), "diversity_scores.json")
     if not os.path.exists(scores_file):

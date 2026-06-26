@@ -9,7 +9,17 @@ import sys
 
 from config import DATASETS, output_dir
 from recommender_module.common.io import processed_filename
+from scores import _load_scores
 from pipeline import run_pipeline
+
+
+# Diversity measures the pipeline can compute, with their display labels. topic is
+# always available; the content measures need a dataset that ships embeddings.
+_METRIC_LABELS = {
+    "topic_diversity": "topic diversity",
+    "content_diversity": "content diversity",
+    "content_diversity_normalized": "content diversity (normalized)",
+}
 
 
 def _ask_yes_no(question, default=False):
@@ -57,7 +67,7 @@ def interactive_main(argv):
     run accordingly. Diversity scores are always recomputed from the processed
     files."""
     dataset = _choose_dataset(argv)
-    # Opt-in: also compute the expensive normalized content-diversity metric.
+    # --normalized makes the (expensive) normalized measure default to "yes".
     normalized = "--normalized" in argv
     cfg = DATASETS[dataset]
     out_dir = output_dir(dataset)
@@ -67,6 +77,16 @@ def interactive_main(argv):
 
     # Ground truth + the recommenders applicable to this dataset.
     recommenders = ["ground_truth", "random", "popular"] + cfg["model_recs"]
+
+    # Diversity measures applicable to this dataset (content needs embeddings), and
+    # which of them already have a value in diversity_scores.json.
+    measures = ["topic_diversity"]
+    if cfg["content_diversity"] is not None:
+        measures += ["content_diversity", "content_diversity_normalized"]
+    existing_scores = _load_scores(json_file)
+
+    def measure_present(m):
+        return any(m in entry for entry in existing_scores.values())
 
     def raw_path(name):
         if name == "ground_truth":
@@ -82,13 +102,16 @@ def interactive_main(argv):
     # 1-3 — show what's already there for this dataset.
     print(f"\n=== EchoBench pipeline — dataset '{dataset}' ===")
     print("\nCurrent state:")
-    print(f"  diversity_scores.json : {mark(json_file)}")
     print("  raw predictions:")
     for name in recommenders:
         print(f"      {name:<13}: {mark(raw_path(name))}")
     print("  processed predictions:")
     for name in recommenders:
         print(f"      {name:<13}: {mark(proc_path(name))}")
+    print("  diversity measures:")
+    for m in measures:
+        status = "present" if measure_present(m) else "missing"
+        print(f"      {_METRIC_LABELS[m]:<30}: {status}")
 
     # 4 — one question per recommender (default: build the missing cheap ones;
     # models must be opted into explicitly because training is expensive).
@@ -102,9 +125,20 @@ def interactive_main(argv):
         if _ask_yes_no(f"  (re)run {name}{extra}?", default=default):
             force_recommenders.add(name)
 
-    # 3 — rebuild processed files. (Diversity scores are always recomputed from
-    # the processed files, so there is no separate "recalculate" prompt.)
+    # 5 — rebuild processed files.
     force_processed = _ask_yes_no("\nRebuild processed per-user files?", default=False)
+
+    # 6 — one question per diversity measure (default: (re)calculate the missing
+    # cheap ones; the expensive normalized one is opt-in, defaulting to whether
+    # --normalized was passed). Measures left unticked keep their existing scores.
+    print("\nWhich diversity measures should be (re)calculated?")
+    force_metrics = set()
+    for m in measures:
+        is_expensive = m == "content_diversity_normalized"
+        default = normalized if is_expensive else not measure_present(m)
+        extra = " (slow; per-impression)" if is_expensive else ""
+        if _ask_yes_no(f"  (re)calculate {_METRIC_LABELS[m]}{extra}?", default=default):
+            force_metrics.add(m)
 
     print()
     run_pipeline(
@@ -112,10 +146,10 @@ def interactive_main(argv):
         force_recommenders=force_recommenders,
         force_processed=force_processed,
         # Only build what was explicitly asked for; the prompts already defaulted
-        # missing cheap recommenders to "yes".
+        # missing cheap recommenders / measures to "yes".
         generate_missing=False,
         train_missing=False,
-        normalized_diversity=normalized,
+        metrics=force_metrics,
     )
 
 
