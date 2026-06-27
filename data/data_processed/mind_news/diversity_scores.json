@@ -13,5 +13,9 @@
     "topic_diversity": 0.778343818589907,
     "content_diversity": 0.3100083988952011,
     "content_diversity_normalized": 0.3480509177363368
+  },
+  "nrms": {
+    "topic_diversity": 0.6966111230049957,
+    "content_diversity": 0.26871241282327385
   }
 }
