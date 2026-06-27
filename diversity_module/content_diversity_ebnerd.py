@@ -4,8 +4,11 @@ from sklearn.metrics.pairwise import cosine_distances
 from itertools import combinations, chain
 import numpy as np
 
-from data.datasets.ebnerd.metrics import (
-    intralist_diversity,
+# intralist_diversity lives in the beyond-accuracy metrics; the dict/combination
+# helpers live in the general utils module. (Importing from the utils package is
+# cheap — it no longer pulls in TensorFlow.)
+from data.datasets.ebnerd.utils._beyond_accuracy import intralist_diversity
+from data.datasets.ebnerd.utils.utils import (
     check_key_in_all_nested_dicts,
     compute_combinations,
     get_keys_in_dict,
