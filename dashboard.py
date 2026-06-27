@@ -6,7 +6,7 @@ a Diversity Score; the Diversity Score section then shows the real score for the
 chosen dataset + recommender.
 
 The dashboard is strictly a *viewer*: it never computes or writes anything. Scores
-are read straight from the diversity_scores.json file the pipeline writes, and the
+are read straight from the run_manifest.json file the pipeline writes, and the
 example article lists from the pipeline's predictions_processed/ files. If a
 dataset's outputs haven't been generated yet, it shows a message pointing you at
 `python pipeline.py <dataset>`.
@@ -30,7 +30,7 @@ PRIMARY_GREEN = "#2e7d32"
 # config and path helpers, plus the score-cache reader, but never the compute or
 # write helpers.
 from config import DATASETS, input_dir, output_dir
-from scores import _file_sig, _load_scores
+from scores import _file_sig, load_manifest, metric_value
 from recommender_module.common.io import processed_filename
 from diversity_module.topic_diversity import _parse_user_articles
 
@@ -212,7 +212,7 @@ def _parse_user_articles_cached(path, sig):
     return _parse_user_articles(path)
 
 
-# Dashboard metric name -> the key used in predictions/diversity_scores.json.
+# Dashboard metric name -> the metric key used in run_manifest.json.
 _CACHE_KEY = {
     "topic": "topic_diversity",
     "content": "content_diversity",
@@ -223,7 +223,7 @@ _CACHE_KEY = {
 def read_score(dataset, recommender, metric):
     """Return (value, message) for one (dataset, recommender, metric).
 
-    Read-only: the score is looked up in the diversity_scores.json file the
+    Read-only: the score is looked up in the run_manifest.json file the
     pipeline writes. The dashboard never computes or stores anything — if the
     score isn't there yet, it returns a message telling the user to run the
     pipeline. value is the float score, or None (with a message) otherwise.
@@ -247,12 +247,8 @@ def read_score(dataset, recommender, metric):
         f"No {METRIC_LABELS[metric].lower()} for '{REC_LABELS[recommender]}' on "
         f"{DATASET_LABELS[dataset]} yet. Generate it with:  {generate_cmd}"
     )
-    scores_file = os.path.join(output_dir(dataset), "diversity_scores.json")
-    if not os.path.exists(scores_file):
-        return None, not_generated
-
-    all_scores = _load_scores(scores_file)
-    value = all_scores.get(recommender, {}).get(_CACHE_KEY[metric])
+    manifest = load_manifest(output_dir(dataset))
+    value = metric_value(manifest, recommender, _CACHE_KEY[metric])
     if value is None:
         return None, not_generated
     return value, None
@@ -268,14 +264,14 @@ def available_metrics(dataset):
 
 
 def _dataset_scores(dataset):
-    """The dataset's {recommender: {metric_key: value}} scores, or {} if none yet."""
-    return _load_scores(os.path.join(output_dir(dataset), "diversity_scores.json"))
+    """The dataset's run manifest, or {} if none yet (legacy file migrated on read)."""
+    return load_manifest(output_dir(dataset))
 
 
 def enabled_recommenders(dataset):
     """Recommenders to leave clickable: applicable to the dataset *and* already
     scored. Ones that don't apply, or haven't been run/scored yet, are greyed-out."""
-    scored = {rec for rec, metrics in _dataset_scores(dataset).items() if metrics}
+    scored = {rec for rec, entry in _dataset_scores(dataset).items() if entry.get("metrics")}
     return [r for r in RECOMMENDERS[dataset] if r in scored]
 
 
@@ -283,7 +279,7 @@ def enabled_metrics(dataset):
     """Metrics to leave clickable: applicable to the dataset *and* already computed
     for at least one recommender. Ones not applicable, or not calculated yet, are
     greyed-out."""
-    present = {k for metrics in _dataset_scores(dataset).values() for k in metrics}
+    present = {k for entry in _dataset_scores(dataset).values() for k in entry.get("metrics", {})}
     return [m for m in available_metrics(dataset) if _CACHE_KEY[m] in present]
 
 
@@ -435,7 +431,7 @@ _ALERT = {"warning": solara.Warning, "info": solara.Info, "success": solara.Succ
 def scores_for_all_recommenders(dataset, metric):
     """Return {recommender: value} for every recommender that has this metric.
 
-    Reads from the diversity_scores.json cache via read_score, so this is cheap
+    Reads from the run_manifest.json cache via read_score, so this is cheap
     and recommenders the pipeline hasn't scored yet are simply omitted.
     """
     result = {}

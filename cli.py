@@ -9,7 +9,7 @@ import sys
 
 from config import DATASETS, output_dir
 from recommender_module.common.io import processed_filename
-from scores import _load_scores
+from scores import load_manifest
 from pipeline import run_pipeline
 
 
@@ -73,20 +73,19 @@ def interactive_main(argv):
     out_dir = output_dir(dataset)
     raw_dir = os.path.join(out_dir, "predictions")
     processed_dir = os.path.join(out_dir, "predictions_processed")
-    json_file = os.path.join(out_dir, "diversity_scores.json")
 
     # Ground truth + the recommenders applicable to this dataset.
     recommenders = ["ground_truth", "random", "popular"] + cfg["model_recs"]
 
     # Diversity measures applicable to this dataset (content needs embeddings), and
-    # which of them already have a value in diversity_scores.json.
+    # which of them already have a value in the run manifest.
     measures = ["topic_diversity"]
     if cfg["content_diversity"] is not None:
         measures += ["content_diversity", "content_diversity_normalized"]
-    existing_scores = _load_scores(json_file)
+    existing_scores = load_manifest(out_dir)
 
     def measure_present(m):
-        return any(m in entry for entry in existing_scores.values())
+        return any(m in entry.get("metrics", {}) for entry in existing_scores.values())
 
     def raw_path(name):
         if name == "ground_truth":

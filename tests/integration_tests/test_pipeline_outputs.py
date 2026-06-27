@@ -178,21 +178,22 @@ def test_user_articles_ids_topics_same_length():
 # Step 6 — Diversity scores
 # ---------------------------------------------------------------------------
 
-DIVERSITY_SCORES_FILE = os.path.join(OUT_DIR, "diversity_scores.json")
+RUN_MANIFEST_FILE = os.path.join(OUT_DIR, "run_manifest.json")
 
 
-def test_diversity_scores_contains_topic_diversity():
+def test_run_manifest_contains_topic_diversity():
     import json
-    skip_if_missing(DIVERSITY_SCORES_FILE)
-    with open(DIVERSITY_SCORES_FILE, encoding="utf-8") as f:
-        scores = json.load(f)
-    for rec, metrics in scores.items():
+    skip_if_missing(RUN_MANIFEST_FILE)
+    with open(RUN_MANIFEST_FILE, encoding="utf-8") as f:
+        manifest = json.load(f)
+    for rec, entry in manifest.items():
+        metrics = entry.get("metrics", {})
         assert "topic_diversity" in metrics, (
-            f"'{rec}' is missing topic_diversity in diversity_scores.json"
+            f"'{rec}' is missing topic_diversity in run_manifest.json"
         )
-        value = metrics["topic_diversity"]
+        value = metrics["topic_diversity"]["value"]
         assert 0.0 <= value <= 1.0, f"'{rec}' topic_diversity {value} out of [0, 1]"
     logger.info(
-        "diversity_scores.json has an in-range topic_diversity for every recommender — "
-        "expected all present and in [0, 1], actual %d recommenders", len(scores)
+        "run_manifest.json has an in-range topic_diversity for every recommender — "
+        "expected all present and in [0, 1], actual %d recommenders", len(manifest)
     )

@@ -13,5 +13,15 @@
     "topic_diversity": 0.5521105410764046,
     "content_diversity": 0.7660959258662099,
     "content_diversity_normalized": 0.6370141510380879
+  },
+  "nrms": {
+    "topic_diversity": 0.9133683487519136,
+    "content_diversity": 0.7777195722801881,
+    "content_diversity_normalized": 0.627959764746359
+  },
+  "lstur": {
+    "topic_diversity": 0.8840673000079217,
+    "content_diversity": 0.763045580006269,
+    "content_diversity_normalized": 0.6965777171051136
   }
 }

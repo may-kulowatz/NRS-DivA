@@ -1,0 +1,92 @@
+{
+  "random": {
+    "predictions_generated_at": "2026-06-26T22:29:05",
+    "predictions_processed_at": "2026-06-27T11:57:54",
+    "metrics": {
+      "topic_diversity": {
+        "value": 0.5801020107504752,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity": {
+        "value": 0.7797639524538904,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity_normalized": {
+        "value": 0.6722592530928152,
+        "calculated_at": "2026-06-27T13:07:45"
+      }
+    }
+  },
+  "popular": {
+    "predictions_generated_at": "2026-06-26T22:29:09",
+    "predictions_processed_at": "2026-06-27T11:57:56",
+    "metrics": {
+      "topic_diversity": {
+        "value": 0.5403846751030956,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity": {
+        "value": 0.7617617212230797,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity_normalized": {
+        "value": 0.6570779971091767,
+        "calculated_at": "2026-06-27T13:07:45"
+      }
+    }
+  },
+  "ground_truth": {
+    "predictions_generated_at": "2026-06-27T04:08:09",
+    "predictions_processed_at": "2026-06-27T11:57:56",
+    "metrics": {
+      "topic_diversity": {
+        "value": 0.5521105410764046,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity": {
+        "value": 0.7660959258662099,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity_normalized": {
+        "value": 0.6370141510380879,
+        "calculated_at": "2026-06-27T13:07:45"
+      }
+    }
+  },
+  "nrms": {
+    "predictions_generated_at": "2026-06-27T12:18:00",
+    "predictions_processed_at": "2026-06-27T12:21:09",
+    "metrics": {
+      "topic_diversity": {
+        "value": 0.9133683487519136,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity": {
+        "value": 0.7777195722801881,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity_normalized": {
+        "value": 0.627959764746359,
+        "calculated_at": "2026-06-27T13:07:45"
+      }
+    }
+  },
+  "lstur": {
+    "predictions_generated_at": "2026-06-27T12:27:13",
+    "predictions_processed_at": "2026-06-27T12:34:46",
+    "metrics": {
+      "topic_diversity": {
+        "value": 0.8840673000079217,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity": {
+        "value": 0.763045580006269,
+        "calculated_at": "2026-06-27T13:07:45"
+      },
+      "content_diversity_normalized": {
+        "value": 0.6965777171051136,
+        "calculated_at": "2026-06-27T13:07:45"
+      }
+    }
+  }
+}

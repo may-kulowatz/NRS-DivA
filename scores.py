@@ -1,17 +1,38 @@
-"""Diversity-score computation, results I/O, and small file helpers.
+"""Diversity-score computation, run-manifest I/O, and small file helpers.
 
 The diversity scores are the one pipeline step with no natural file output, so the
-results are persisted to ``data_processed/<dataset>/diversity_scores.json`` as a
-plain ``{recommender: {metric: value}}`` map. That file is the **dashboard's data
-source** — the dashboard only reads it, never recomputes.
+results are persisted to ``data_processed/<dataset>/run_manifest.json`` — a
+per-recommender **run manifest** that records both the results and *when* each
+stage ran::
 
-Scores are recomputed from scratch on every run: there is no reuse cache. The
-interactive front-end already reports what exists and asks what to (re)run, so a
-signature-keyed "skip if unchanged" cache on top of that was redundant.
+    {
+      "<recommender>": {
+        "predictions_generated_at": "<iso>",   # mtime of its prediction file
+        "predictions_processed_at": "<iso>",   # mtime of its processed file (or null)
+        "metrics": {
+          "<metric_key>": {"value": <float>, "calculated_at": "<iso>"}
+        }
+      }
+    }
+
+That file is the **dashboard's data source** — the dashboard only reads it, never
+recomputes. The two stage timestamps are read straight from the on-disk files'
+mtimes (no extra plumbing); only each metric's ``calculated_at`` is stamped at
+compute time. Metrics are merged into the manifest, so a measure not recomputed
+this run keeps its previous value + timestamp.
+
+Earlier versions stored a flat ``{recommender: {metric: value}}`` map in
+``diversity_scores.json``; ``load_manifest`` migrates such a file into the nested
+shape on read, so existing datasets keep working until the next pipeline run.
 """
 
 import json
 import os
+from datetime import datetime
+
+# Current manifest filename and the legacy flat-scores filename it superseded.
+MANIFEST_FILENAME = "run_manifest.json"
+_LEGACY_FILENAME = "diversity_scores.json"
 
 
 def _file_sig(path):
@@ -37,7 +58,7 @@ def _stale(output, *inputs):
 
 
 def _load_scores(path):
-    """Load the persisted ``{recommender: {metric: value}}`` map, or ``{}``."""
+    """Load a JSON object from ``path``, or ``{}`` if missing/unreadable."""
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
@@ -46,9 +67,85 @@ def _load_scores(path):
 
 
 def _save_scores(path, scores):
-    """Persist the ``{recommender: {metric: value}}`` map as JSON."""
+    """Persist a JSON object to ``path``."""
     with open(path, "w", encoding="utf-8") as f:
         json.dump(scores, f, indent=2)
+
+
+# --------------------------------------------------------------------------- #
+# Run manifest: results + "what ran when", per recommender.
+# --------------------------------------------------------------------------- #
+
+def _iso_mtime(path):
+    """File's modification time as an ISO-8601 string (to seconds), or None."""
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(path)).isoformat(timespec="seconds")
+    except OSError:
+        return None
+
+
+def _migrate_flat_scores(flat):
+    """Convert a legacy ``{recommender: {metric: value}}`` map into the nested
+    manifest shape. Stage timestamps are unknown for legacy data (filled in from
+    file mtimes the next time the pipeline saves), and ``calculated_at`` is null."""
+    manifest = {}
+    for rec, metrics in flat.items():
+        manifest[rec] = {
+            "predictions_generated_at": None,
+            "predictions_processed_at": None,
+            "metrics": {
+                key: {"value": value, "calculated_at": None}
+                for key, value in metrics.items()
+            },
+        }
+    return manifest
+
+
+def load_manifest(out_dir):
+    """Load the run manifest for a dataset's output dir.
+
+    Prefers ``run_manifest.json``; if only the legacy ``diversity_scores.json`` is
+    present it is migrated into the nested shape in memory (so the dashboard keeps
+    working before the next pipeline run). Returns ``{}`` if neither exists.
+    """
+    manifest_path = os.path.join(out_dir, MANIFEST_FILENAME)
+    if os.path.exists(manifest_path):
+        return _load_scores(manifest_path)
+    legacy_path = os.path.join(out_dir, _LEGACY_FILENAME)
+    if os.path.exists(legacy_path):
+        return _migrate_flat_scores(_load_scores(legacy_path))
+    return {}
+
+
+def save_manifest(out_dir, manifest):
+    """Persist the run manifest to ``out_dir/run_manifest.json``."""
+    _save_scores(os.path.join(out_dir, MANIFEST_FILENAME), manifest)
+
+
+def metric_value(manifest, recommender, metric_key):
+    """The recorded value for one (recommender, metric) in the manifest, or None."""
+    return (
+        manifest.get(recommender, {})
+        .get("metrics", {})
+        .get(metric_key, {})
+        .get("value")
+    )
+
+
+def record_metric(rec_entry, metric_key, value, when):
+    """Record a metric's ``value`` + ``calculated_at`` into a recommender entry
+    (``manifest[rec]``), creating the ``metrics`` block if needed."""
+    rec_entry.setdefault("metrics", {})[metric_key] = {
+        "value": value,
+        "calculated_at": when,
+    }
+
+
+def record_stage_times(rec_entry, raw_path, processed_path):
+    """Set a recommender entry's stage timestamps from the mtimes of its
+    prediction file and processed per-user file (``None`` if a file is missing)."""
+    rec_entry["predictions_generated_at"] = _iso_mtime(raw_path)
+    rec_entry["predictions_processed_at"] = _iso_mtime(processed_path)
 
 
 class MetricUnavailable(Exception):

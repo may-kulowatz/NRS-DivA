@@ -10,6 +10,7 @@ the orchestration that ties them together.
 
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -18,9 +19,12 @@ from recommender_module.base import build_recommenders, RunContext
 from scores import (
     MetricUnavailable,
     _compute_scores,
-    _load_scores,
-    _save_scores,
     _stale,
+    load_manifest,
+    save_manifest,
+    metric_value,
+    record_metric,
+    record_stage_times,
 )
 # Each dataset's preparation is driven through its config "prepare" module:
 # ensure_raw_data guarantees the essential inputs up front; ensure_utils fetches
@@ -58,7 +62,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     metrics            : iterable of diversity-measure keys to (re)calculate this
                          run ("topic_diversity", "content_diversity",
                          "content_diversity_normalized"). Measures not listed are
-                         left untouched in diversity_scores.json (it is merged, not
+                         left untouched in run_manifest.json (it is merged, not
                          overwritten) — like a recommender's file persisting when it
                          is not re-run. Default (None): the cheap per-user measures,
                          plus the normalized one only if ``normalized_diversity``.
@@ -87,7 +91,7 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     # Outputs split into two parallel folders under data_processed/<dir>/:
     #   predictions/            — full-rank output each recommender emits directly
     #   predictions_processed/  — the per-user files built from it (the diversity
-    #                             input); ground_truth.txt + diversity_scores.json
+    #                             input); ground_truth.txt + run_manifest.json
     #                             sit alongside them at the dataset root.
     raw_dir = os.path.join(out_dir, "predictions")
     processed_dir = os.path.join(out_dir, "predictions_processed")
@@ -232,20 +236,27 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     else:
         selected = set(metrics) & set(applicable)
 
-    # Start from the scores already on disk so measures we are NOT recomputing this
-    # run are preserved (like a recommender's prediction file persisting when it is
-    # not re-run); only the selected measures are overwritten.
-    scores_file = os.path.join(out_dir, "diversity_scores.json")
-    scores = _load_scores(scores_file)
+    # Start from the manifest already on disk so measures we are NOT recomputing
+    # this run are preserved (like a recommender's prediction file persisting when
+    # it is not re-run); only the selected measures are overwritten. A legacy flat
+    # diversity_scores.json is migrated into the nested shape on load.
+    manifest = load_manifest(out_dir)
+    now = datetime.now().isoformat(timespec="seconds")
+
+    # Record "what ran when" for every active recommender: the generated/processed
+    # stage timestamps are just the mtimes of the files that already exist on disk.
+    for rec in active:
+        entry = manifest.setdefault(rec.name, {})
+        record_stage_times(entry, rec.raw_path(ctx), rec.processed_path(ctx))
 
     # Per-user metrics (topic / content), computed per active recommender (in the
     # active order: random, popular, models..., ground_truth).
     per_user_defs = [(k, fn) for k, fn in metric_defs if k in selected]
     if per_user_defs:
         for rec in active:
-            scores.setdefault(rec.name, {}).update(
-                _compute_scores(rec.processed_path(ctx), per_user_defs)
-            )
+            entry = manifest.setdefault(rec.name, {})
+            for key, value in _compute_scores(rec.processed_path(ctx), per_user_defs).items():
+                record_metric(entry, key, value, now)
 
     # Normalized (EBNeRD-style) content diversity: per-impression, against the
     # candidate pool. Only when selected and the embeddings can be loaded.
@@ -257,14 +268,16 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
             print(f"    skipping content_diversity_normalized: {exc}")
         else:
             for rec in active:
-                scores.setdefault(rec.name, {})["content_diversity_normalized"] = (
-                    normalized_content_diversity(
-                        impressions, rec.recommended_by_impr(ctx), embeddings,
-                        max_combinations=normalized_max_combinations, seed=seed,
-                    )
+                value = normalized_content_diversity(
+                    impressions, rec.recommended_by_impr(ctx), embeddings,
+                    max_combinations=normalized_max_combinations, seed=seed,
+                )
+                record_metric(
+                    manifest.setdefault(rec.name, {}),
+                    "content_diversity_normalized", value, now,
                 )
 
-    _save_scores(scores_file, scores)
+    save_manifest(out_dir, manifest)
     if selected:
         print(f"  (re)calculated {', '.join(sorted(selected))} for {len(active)} recommender(s).")
     else:
@@ -272,16 +285,18 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
 
     print("\n=== Diversity Scores ===")
     for rec in active:
-        s = scores.get(rec.name, {})
         print(f"\n  {rec.name}:")
-        if "topic_diversity" in s:
-            print(f"    Topic diversity:      {s['topic_diversity']:.4f}")
-        if "content_diversity" in s:
-            print(f"    Content diversity:    {s['content_diversity']:.4f}")
-        if "content_diversity_normalized" in s:
-            print(f"    Content div. (norm.): {s['content_diversity_normalized']:.4f}")
+        topic = metric_value(manifest, rec.name, "topic_diversity")
+        content = metric_value(manifest, rec.name, "content_diversity")
+        normalized = metric_value(manifest, rec.name, "content_diversity_normalized")
+        if topic is not None:
+            print(f"    Topic diversity:      {topic:.4f}")
+        if content is not None:
+            print(f"    Content diversity:    {content:.4f}")
+        if normalized is not None:
+            print(f"    Content div. (norm.): {normalized:.4f}")
 
-    return scores
+    return manifest
 
 
 if __name__ == "__main__":

@@ -127,5 +127,5 @@ size from the impression's candidates, estimated by
 > **Expensive** (per impression it samples up to `max_combinations` candidate
 > subsets), so the pipeline computes it only when asked: `run_pipeline(...,
 > normalized_diversity=True)` or `python pipeline.py <dataset> --normalized`. It
-> is written to `diversity_scores.json` under the key
-> `content_diversity_normalized`.
+> is written to `run_manifest.json` under each recommender's
+> `metrics.content_diversity_normalized`.
