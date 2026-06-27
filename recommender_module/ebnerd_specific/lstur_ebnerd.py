@@ -66,7 +66,7 @@ HISTORY_SIZE = 20
 
 
 def run(dataset_dir, train_split, dev_split, prediction_file,
-        *, epochs=1, seed=42, batch_size=32, fraction=0.01):
+        *, epochs=1, seed=42, batch_size=32, fraction=0.01, test_fraction=1.0):
     """Train LSTUR on eb-nerd and write its full-rank predictions.
 
     Signature is identical to `nrms_ebnerd.run` (and to the MIND trainers), so the
@@ -84,7 +84,11 @@ def run(dataset_dir, train_split, dev_split, prediction_file,
                       pipeline reads it through the ordinary rank readers.
 
     `fraction` down-samples the *training* data for speed (the quick-start default);
-    predictions are written for the full dev split so every impression is covered.
+    `test_fraction` (default 1.0 = the whole dev split) down-samples the *dev*
+    split that predictions are written for. The dev-split prediction is the slow
+    part (one forward pass per impression), so lower test_fraction for a quick
+    smoke test — but then the prediction file covers only those impressions, so
+    use it only to check the run works end-to-end, not for real scoring.
     """
     # ebnerd_from_path / pl.read_parquet take a pathlib.Path (it calls
     # `.joinpath(...)` internally), so use Path for the dataset paths.
@@ -140,7 +144,8 @@ def run(dataset_dir, train_split, dev_split, prediction_file,
     user_id_mapping = create_user_id_to_int_mapping(df)
     hparams_lstur.n_users = len(user_id_mapping)
 
-    # --- Dev split: the impressions we write predictions for (full, not sampled) ---
+    # --- Dev split: the impressions we write predictions for ---
+    # Full by default; down-sampled when test_fraction < 1.0 for a quick smoke test.
     df_test = (
         ebnerd_from_path(
             base / dev_split, history_size=HISTORY_SIZE, padding=0
@@ -148,6 +153,9 @@ def run(dataset_dir, train_split, dev_split, prediction_file,
         .select(columns)
         .pipe(create_binary_labels_column)
     )
+    if test_fraction < 1.0:
+        df_test = df_test.sample(fraction=test_fraction, seed=seed)
+    print(f"Dev (prediction) samples: {df_test.height}")
 
     # --- Article title embeddings via the HuggingFace transformer -------------
     # Identical to NRMS: tokenise the (sub)title with XLM-RoBERTa, take the model's
@@ -231,4 +239,10 @@ if __name__ == "__main__":
     prediction_file = os.path.join(
         _project_dir, "data", "data_processed", "ebnerd", "predictions", "prediction_lstur.txt"
     )
-    run(ebnerd_dir, "train", "validation", prediction_file)
+    # Standalone run = fast smoke test: predict on ~1% of the dev split so the whole
+    # train->predict->write path finishes in minutes instead of hours. Pass a number
+    # on the command line to override (e.g. `python lstur_ebnerd.py 0.05`, or `1.0`
+    # for the full dev split). The pipeline always runs the full split (test_fraction
+    # defaults to 1.0 and the pipeline passes no kwargs).
+    test_fraction = float(sys.argv[1]) if len(sys.argv) > 1 else 0.01
+    run(ebnerd_dir, "train", "validation", prediction_file, test_fraction=test_fraction)

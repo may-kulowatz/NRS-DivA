@@ -1086,7 +1086,13 @@ def add_prediction_scores(
         .sort(GROUPBY_ID)
         .collect()
     )
-    return df.with_columns(scores.select(prediction_scores_col)).drop(GROUPBY_ID)
+    # GROUPBY_ID is only a helper column on the temporary `scores` frame built
+    # above; it is never added to `df`. Older polars silently ignored dropping a
+    # missing column, but polars >=1.0 raises ColumnNotFoundError, so drop it
+    # non-strictly to keep the original (no-op) intent.
+    return df.with_columns(scores.select(prediction_scores_col)).drop(
+        GROUPBY_ID, strict=False
+    )
 
 
 def down_sample_on_users(
