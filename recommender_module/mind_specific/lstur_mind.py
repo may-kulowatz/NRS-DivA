@@ -85,7 +85,7 @@ if __name__ == "__main__":
     from dataset_module.mind.prepare import ensure_raw_data, ensure_utils
 
     mind_dir = os.path.join(_project_dir, "data", "datasets", "mind")
-    ensure_raw_data(mind_dir)   # dev split (train split must already exist)
+    ensure_raw_data(mind_dir)   # dev + train splits (train fetched best-effort)
     ensure_utils(mind_dir)
 
     prediction_file = os.path.join(

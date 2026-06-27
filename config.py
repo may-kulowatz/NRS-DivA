@@ -54,7 +54,7 @@ DATASETS = {
             "embedding": ("utils", "embedding.npy"),
             "word_dict": ("utils", "word_dict.pkl"),
         },
-        # Prepares MIND: ensure_raw_data fetches the dev split; ensure_utils
+        # Prepares MIND: ensure_raw_data fetches the dev + train splits; ensure_utils
         # fetches the (gitignored) embeddings/dicts on demand before content
         # diversity reads them.
         "prepare": mind_prepare,
