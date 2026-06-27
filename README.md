@@ -1,8 +1,21 @@
-# EchoBench
+# Welcome to NRS-DiAna (News Recommender System - Diversity Analyser)
+... a benchmarking prototype to compare news recommender systems based on different diversity measures.
+Right now, it runs with two datasets [MINDsmall](link) and [EB-NeRDsmall](link).
+It also includes a subset of MINDsmall, only containing news of category "news".
 
-A benchmark for measuring the **diversity** of news recommender systems. EchoBench
-runs several recommenders over a news dataset, then scores how diverse each
-recommender's lists are compared to one another and to the ground truth.
+## Content
+
+ 1. Quick start
+ 2. Components
+ 3. Add MIND and EB-NeRD
+ 4. Run the pipeline
+ 5. Architecture
+ 6. Add your own dataset
+ 7. Add your own recommender
+ 8. Add your own diversity metric
+ 9. Licence
+
+**If you want to test your prediction for the MIND challenge**:
 
 ## Quick start
 
