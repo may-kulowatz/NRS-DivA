@@ -1,4 +1,4 @@
-# Welcome to NRS-DiAna (News Recommender System - Diversity Analyser)
+# Welcome to NRS-DivA (News Recommender System - Diversity Analyser)
 ... a benchmarking prototype to compare news recommender systems based on different diversity measures.
 Right now, it runs with two datasets [MINDsmall](link) and [EB-NeRDsmall](link).
 It also includes a subset of MINDsmall, only containing news of category "news".

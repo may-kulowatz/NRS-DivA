@@ -28,3 +28,6 @@ data/datasets/ebnerd/train
 data/datasets/ebnerd/validation
 data/datasets/ebnerd/articles.parquet
 data/datasets/ebnerd/contrastive_vector.parquet
+data/datasets/ebnerd/xlm_roberta_base.parquet
+data/datasets/ebnerd/bert_base_multilingual_cased.parquet
+data/datasets/ebnerd/document_vector.parquet

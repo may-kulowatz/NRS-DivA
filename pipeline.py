@@ -178,61 +178,79 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
     print("Calculating diversity scores...")
     cd_cfg = cfg["content_diversity"]
 
-    # Embeddings are only needed to (re)compute content diversity, and loading
-    # them is expensive, so load lazily and at most once per run.
-    _embeddings = {}
-    def get_embeddings():
-        if "error" in _embeddings:           # fetch already failed once this run
-            raise MetricUnavailable(_embeddings["error"])
-        if "value" not in _embeddings:
-            try:
-                if cd_cfg["kind"] == "precomputed":
-                    # Ready-made document vectors shipped with the dataset
-                    # (e.g. eb-nerd's contrastive_vector.parquet) — just load them.
-                    _embeddings["value"] = load_precomputed_embeddings(
-                        os.path.join(in_dir, *cd_cfg["vectors"])
+    # Content diversity is measured in one or more embedding "spaces": the primary
+    # space comes from content_diversity config (eb-nerd's contrastive vectors, or
+    # MIND's word-average title vectors) and uses the bare metric keys; each extra
+    # precomputed space in content_embeddings (e.g. eb-nerd's xlm_roberta_base)
+    # adds suffixed keys content_diversity_<name> / content_diversity_normalized_<name>.
+    # Loading an embedding map is expensive, so each is loaded lazily and at most
+    # once per run, and a load failure is turned into MetricUnavailable so only the
+    # affected measure is skipped rather than crashing the run.
+    def _make_loader(load_fn):
+        cache = {}
+        def loader():
+            if "error" in cache:              # already failed once this run
+                raise MetricUnavailable(cache["error"])
+            if "value" not in cache:
+                try:
+                    cache["value"] = load_fn()
+                except Exception as exc:
+                    cache["error"] = (
+                        f"content diversity needs article embeddings, which "
+                        f"couldn't be obtained ({exc.__class__.__name__})"
                     )
-                else:
-                    # word_average: the embeddings/dicts are large gitignored
-                    # inputs; fetch them on demand (dataset-specific hook) before
-                    # the first content-diversity compute.
-                    cfg["prepare"].ensure_utils(in_dir)
-                    _embeddings["value"] = load_news_embeddings(
-                        articles_file,
-                        os.path.join(in_dir, *cd_cfg["embedding"]),
-                        os.path.join(in_dir, *cd_cfg["word_dict"]),
-                    )
-            except Exception as exc:
-                # If the vectors can't be obtained (missing file, no network, host
-                # down, Recommenders not installed), record it and let content
-                # diversity be skipped rather than crashing the whole run.
-                _embeddings["error"] = (
-                    f"content diversity needs article embeddings, which couldn't "
-                    f"be obtained ({exc.__class__.__name__})"
-                )
-                raise MetricUnavailable(_embeddings["error"]) from exc
-        return _embeddings["value"]
+                    raise MetricUnavailable(cache["error"]) from exc
+            return cache["value"]
+        return loader
 
-    # Per-user metrics that apply to this dataset, as (key, fn(path) -> float).
-    # Content diversity only applies when embeddings are shipped (content_diversity
-    # config present); the normalized metric is selectable like them but computed
-    # separately below (it needs candidate pools, not the per-user file).
-    metric_defs = [("topic_diversity", lambda p: topic_diversity(p))]
-    if cd_cfg is not None:
-        metric_defs.append(
-            ("content_diversity", lambda p: content_diversity(p, get_embeddings()))
+    def _load_primary():
+        if cd_cfg["kind"] == "precomputed":
+            # Ready-made document vectors shipped with the dataset
+            # (e.g. eb-nerd's contrastive_vector.parquet) — just load them.
+            return load_precomputed_embeddings(os.path.join(in_dir, *cd_cfg["vectors"]))
+        # word_average: the embeddings/dicts are large gitignored inputs; fetch
+        # them on demand (dataset-specific hook) before the first compute.
+        cfg["prepare"].ensure_utils(in_dir)
+        return load_news_embeddings(
+            articles_file,
+            os.path.join(in_dir, *cd_cfg["embedding"]),
+            os.path.join(in_dir, *cd_cfg["word_dict"]),
         )
-    applicable = [k for k, _ in metric_defs]
+
+    # (suffix, lazy loader) per content space, primary first.
+    content_spaces = []
     if cd_cfg is not None:
-        applicable.append("content_diversity_normalized")
+        content_spaces.append(("", _make_loader(_load_primary)))
+    for name, (vec_file, vec_col) in cfg.get("content_embeddings", {}).items():
+        content_spaces.append((
+            f"_{name}",
+            _make_loader(
+                lambda vf=vec_file, vc=vec_col: load_precomputed_embeddings(
+                    os.path.join(in_dir, vf), vector_column=vc
+                )
+            ),
+        ))
+
+    # Per-user metrics, as (key, fn(path) -> float): topic diversity plus one
+    # content_diversity{suffix} (ILD) per content space.
+    metric_defs = [("topic_diversity", lambda p: topic_diversity(p))]
+    for suffix, loader in content_spaces:
+        metric_defs.append((
+            f"content_diversity{suffix}",
+            lambda p, ld=loader: content_diversity(p, ld()),
+        ))
+    # The normalized variants are selectable like the per-user ones but computed
+    # separately below (they need candidate pools, not the per-user file).
+    normalized_keys = [f"content_diversity_normalized{suffix}" for suffix, _ in content_spaces]
+    applicable = [k for k, _ in metric_defs] + normalized_keys
 
     # Which measures to (re)calculate this run. Default (metrics=None): the cheap
-    # per-user ones, plus the normalized one only when explicitly requested (it is
-    # expensive). An explicit `metrics` set fully decides the selection.
+    # per-user ones, plus the normalized ones only when explicitly requested (they
+    # are expensive). An explicit `metrics` set fully decides the selection.
     if metrics is None:
         selected = {k for k, _ in metric_defs}
         if normalized_diversity:
-            selected.add("content_diversity_normalized")
+            selected.update(normalized_keys)
     else:
         selected = set(metrics) & set(applicable)
 
@@ -259,23 +277,23 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
                 record_metric(entry, key, value, now)
 
     # Normalized (EBNeRD-style) content diversity: per-impression, against the
-    # candidate pool. Only when selected and the embeddings can be loaded.
-    if "content_diversity_normalized" in selected:
-        print("  computing normalized content diversity (per-impression; can be slow)...")
+    # candidate pool. One per content space, only when selected and its embeddings
+    # can be loaded.
+    for (suffix, loader), nkey in zip(content_spaces, normalized_keys):
+        if nkey not in selected:
+            continue
+        print(f"  computing {nkey} (per-impression; can be slow)...")
         try:
-            embeddings = get_embeddings()
+            embeddings = loader()
         except MetricUnavailable as exc:
-            print(f"    skipping content_diversity_normalized: {exc}")
-        else:
-            for rec in active:
-                value = normalized_content_diversity(
-                    impressions, rec.recommended_by_impr(ctx), embeddings,
-                    max_combinations=normalized_max_combinations, seed=seed,
-                )
-                record_metric(
-                    manifest.setdefault(rec.name, {}),
-                    "content_diversity_normalized", value, now,
-                )
+            print(f"    skipping {nkey}: {exc}")
+            continue
+        for rec in active:
+            value = normalized_content_diversity(
+                impressions, rec.recommended_by_impr(ctx), embeddings,
+                max_combinations=normalized_max_combinations, seed=seed,
+            )
+            record_metric(manifest.setdefault(rec.name, {}), nkey, value, now)
 
     save_manifest(out_dir, manifest)
     if selected:
@@ -284,17 +302,17 @@ def run_pipeline(dataset="MIND", seed=42, data_root=DATA_ROOT, *,
         print("  no diversity measures selected; existing scores left unchanged.")
 
     print("\n=== Diversity Scores ===")
+    # Display order: topic, then each content space's ILD + normalized key.
+    display_keys = ["topic_diversity"]
+    for suffix, _ in content_spaces:
+        display_keys.append(f"content_diversity{suffix}")
+        display_keys.append(f"content_diversity_normalized{suffix}")
     for rec in active:
         print(f"\n  {rec.name}:")
-        topic = metric_value(manifest, rec.name, "topic_diversity")
-        content = metric_value(manifest, rec.name, "content_diversity")
-        normalized = metric_value(manifest, rec.name, "content_diversity_normalized")
-        if topic is not None:
-            print(f"    Topic diversity:      {topic:.4f}")
-        if content is not None:
-            print(f"    Content diversity:    {content:.4f}")
-        if normalized is not None:
-            print(f"    Content div. (norm.): {normalized:.4f}")
+        for key in display_keys:
+            value = metric_value(manifest, rec.name, key)
+            if value is not None:
+                print(f"    {key:<37} {value:.4f}")
 
     return manifest
 

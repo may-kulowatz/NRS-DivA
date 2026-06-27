@@ -77,9 +77,21 @@ DATASETS = {
         "train_split": "train",
         # "precomputed": one ready-made document embedding per article, read
         # straight from contrastive_vector.parquet (768-dim contrastive vectors).
+        # This is the *primary* content space (the bare content_diversity keys).
         "content_diversity": {
             "kind": "precomputed",
             "vectors": ("contrastive_vector.parquet",),
+        },
+        # Extra precomputed article-embedding spaces eb-nerd ships, as
+        # name -> (parquet_file, vector_column). Each adds its own
+        # content_diversity_<name> (+ _normalized_<name>) measures alongside the
+        # primary contrastive one above, so diversity can be compared across
+        # representations. All keyed by article_id, one vector per article.
+        "content_embeddings": {
+            "xlmr": ("xlm_roberta_base.parquet", "FacebookAI/xlm-roberta-base"),
+            "bert": ("bert_base_multilingual_cased.parquet",
+                     "google-bert/bert-base-multilingual-cased"),
+            "docvec": ("document_vector.parquet", "document_vector"),
         },
         # Verifies inputs are present; ensure_utils is a no-op (the contrastive
         # vectors are shipped with the dataset, not fetched).

@@ -1,4 +1,4 @@
-"""EchoBench — Solara dashboard.
+"""NRS-DivA — Solara dashboard.
 
 A single-page dashboard for exploring the diversity of the baseline
 recommenders across datasets. The user picks a Dataset, a Recommender System and
@@ -59,12 +59,35 @@ REC_LABELS = {
     "ground_truth": "Ground truth",
 }
 
+# Extra content-embedding spaces (beyond the default contrastive one), discovered
+# from the dataset configs so the dashboard's metric list/labels/text/cache-keys
+# stay in sync with the pipeline without hardcoding each space. Each space `name`
+# yields two dashboard metric ids: content_<name> (ILD) and content_normalized_<name>,
+# mapping to manifest keys content_diversity_<name> / content_diversity_normalized_<name>.
+_SPACE_LABELS = {"xlmr": "XLM-R", "bert": "BERT", "docvec": "doc2vec"}
+_SPACE_DESC = {
+    "xlmr": "the multilingual **XLM-RoBERTa** transformer (the same encoder the "
+            "NRMS/LSTUR models use for titles)",
+    "bert": "**multilingual BERT** (`bert-base-multilingual-cased`)",
+    "docvec": "the classical 300-dim **document vector** (non-contextual) embedding",
+}
+_CONTENT_SPACES = []  # ordered union of embedding-space names across all datasets
+for _cfg in DATASETS.values():
+    for _name in _cfg.get("content_embeddings", {}):
+        if _name not in _CONTENT_SPACES:
+            _CONTENT_SPACES.append(_name)
+
 METRICS = ["topic", "content", "content_normalized"]
 METRIC_LABELS = {
     "topic": "Topic diversity",
     "content": "Content diversity (ILD)",
     "content_normalized": "Content diversity (normalized)",
 }
+for _name in _CONTENT_SPACES:
+    _lbl = _SPACE_LABELS.get(_name, _name)
+    METRICS += [f"content_{_name}", f"content_normalized_{_name}"]
+    METRIC_LABELS[f"content_{_name}"] = f"Content diversity ({_lbl}, ILD)"
+    METRIC_LABELS[f"content_normalized_{_name}"] = f"Content diversity ({_lbl}, normalized)"
 
 DATASET_TEXT = {
     "MIND": (
@@ -157,11 +180,28 @@ METRIC_TEXT = {
         "when the pipeline is run with `--normalized`."
     ),
 }
+# Per-embedding-space variants reuse the same wording, noting which embedding space
+# they are measured in (so the user can compare representations).
+for _name in _CONTENT_SPACES:
+    _lbl = _SPACE_LABELS.get(_name, _name)
+    _desc = _SPACE_DESC.get(_name, f"the `{_name}` embedding")
+    METRIC_TEXT[f"content_{_name}"] = (
+        f"**Content diversity ({_lbl}, ILD)** — the same *intra-list diversity* as "
+        f"*Content diversity (ILD)*, but computed in {_desc} space instead of the "
+        f"default contrastive one. Comparing the spaces shows how representation-"
+        f"dependent the measured diversity is."
+    )
+    METRIC_TEXT[f"content_normalized_{_name}"] = (
+        f"**Content diversity ({_lbl}, normalized)** — the per-impression normalized "
+        f"content diversity (rescaled against each impression's candidate pool), "
+        f"computed in {_desc} space. Computed only when the pipeline is run with "
+        f"`--normalized`."
+    )
 
 INTRO_MD = """
-# EchoBench
+# NRS-DivA
 
-Welcome to **EchoBench**, a small workbench for comparing how *diverse* the
+Welcome to **NRS-DivA**, a small workbench for comparing how *diverse* the
 recommendations of different recommender systems are, across different
 news datasets.
 
@@ -218,6 +258,9 @@ _CACHE_KEY = {
     "content": "content_diversity",
     "content_normalized": "content_diversity_normalized",
 }
+for _name in _CONTENT_SPACES:
+    _CACHE_KEY[f"content_{_name}"] = f"content_diversity_{_name}"
+    _CACHE_KEY[f"content_normalized_{_name}"] = f"content_diversity_normalized_{_name}"
 
 
 def read_score(dataset, recommender, metric):
@@ -228,20 +271,20 @@ def read_score(dataset, recommender, metric):
     score isn't there yet, it returns a message telling the user to run the
     pipeline. value is the float score, or None (with a message) otherwise.
     """
-    cfg = DATASETS[dataset]
-    # Metrics that simply don't apply to a dataset get an explanatory message,
-    # not a "run the pipeline" one — running it wouldn't produce them. The two
-    # content metrics both need article embeddings.
-    if metric in ("content", "content_normalized") and cfg["content_diversity"] is None:
+    # Metrics that simply don't apply to a dataset get an explanatory message, not
+    # a "run the pipeline" one — running it wouldn't produce them. All content
+    # metrics (default contrastive + each embedding space) need article embeddings;
+    # available_metrics() already encodes which apply to this dataset.
+    if metric not in available_metrics(dataset):
         return None, (
             f"{METRIC_LABELS[metric]} isn't available for {DATASET_LABELS[dataset]} — "
-            "no article embeddings are shipped for this dataset."
+            "the matching article embeddings aren't shipped for this dataset."
         )
 
-    # The normalized metric is opt-in, so the hint must include the flag that
-    # produces it; the others are emitted by a plain run.
+    # The normalized metrics are opt-in, so the hint must include the flag that
+    # produces them; the others are emitted by a plain run.
     generate_cmd = f"python pipeline.py {dataset}"
-    if metric == "content_normalized":
+    if metric.startswith("content_normalized"):
         generate_cmd += " --normalized"
     not_generated = (
         f"No {METRIC_LABELS[metric].lower()} for '{REC_LABELS[recommender]}' on "
@@ -256,10 +299,14 @@ def read_score(dataset, recommender, metric):
 
 def available_metrics(dataset):
     """Diversity metrics that *apply* to a dataset. Topic always applies; the
-    content metrics need article embeddings (a `content_diversity` config)."""
+    default content metrics need a `content_diversity` config, and each extra
+    embedding space in `content_embeddings` adds its own content_<name> pair."""
+    cfg = DATASETS[dataset]
     metrics = ["topic"]
-    if DATASETS[dataset]["content_diversity"] is not None:
+    if cfg["content_diversity"] is not None:
         metrics += ["content", "content_normalized"]
+    for name in cfg.get("content_embeddings", {}):
+        metrics += [f"content_{name}", f"content_normalized_{name}"]
     return metrics
 
 
