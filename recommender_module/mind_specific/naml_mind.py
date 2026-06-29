@@ -7,6 +7,7 @@
 
 import os
 import sys
+import pickle
 import numpy as np
 from tqdm import tqdm
 import tensorflow as tf
@@ -18,6 +19,18 @@ from recommenders.models.newsrec.io.mind_all_iterator import MINDAllIterator
 
 # NAML uses the full uid2index user mapping.
 _USER_DICT = "uid2index.pkl"
+
+
+def _embedding_size(dict_file):
+    """Rows a category embedding needs for a 1-based {name: index} dict.
+
+    Indices start at 1 (0 is the padding slot), so the table size is the largest
+    index plus one — not len(dict), which would be one short whenever the indices
+    are contiguous from 1.
+    """
+    with open(dict_file, "rb") as f:
+        cat_dict = pickle.load(f)
+    return max(cat_dict.values()) + 1
 
 
 def run(dataset_dir, train_split, dev_split, prediction_file,
@@ -40,13 +53,25 @@ def run(dataset_dir, train_split, dev_split, prediction_file,
     valid_behaviors_file = os.path.join(dataset_dir, dev_split, "behaviors.tsv")
 
     utils_dir = os.path.join(dataset_dir, "utils")
+    vert_dict_file = os.path.join(utils_dir, "vert_dict.pkl")
+    subvert_dict_file = os.path.join(utils_dir, "subvert_dict.pkl")
+
+    # The (sub-)vertical category counts in naml.yaml are the Microsoft MINDdemo
+    # defaults and don't necessarily match the dicts this dataset shipped. Derive
+    # the embedding sizes from the actual dicts: indices are 1-based (0 is the
+    # padding slot), so the table needs max(index) + 1 rows.
+    vert_num = _embedding_size(vert_dict_file)
+    subvert_num = _embedding_size(subvert_dict_file)
+
     hparams = prepare_hparams(
         os.path.join(utils_dir, "naml.yaml"),
         wordEmb_file=os.path.join(utils_dir, "embedding_all.npy"),
         wordDict_file=os.path.join(utils_dir, "word_dict_all.pkl"),
         userDict_file=os.path.join(utils_dir, _USER_DICT),
-        vertDict_file=os.path.join(utils_dir, "vert_dict.pkl"),
-        subvertDict_file=os.path.join(utils_dir, "subvert_dict.pkl"),
+        vertDict_file=vert_dict_file,
+        subvertDict_file=subvert_dict_file,
+        vert_num=vert_num,
+        subvert_num=subvert_num,
         batch_size=batch_size,
         epochs=epochs,
         show_step=10,

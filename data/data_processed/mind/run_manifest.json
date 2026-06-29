@@ -1,15 +1,15 @@
 {
   "random": {
-    "predictions_generated_at": "2026-06-26T15:10:13",
-    "predictions_processed_at": "2026-06-27T01:34:44",
+    "predictions_generated_at": "2026-06-27T19:49:15",
+    "predictions_processed_at": "2026-06-28T06:45:47",
     "metrics": {
       "topic_diversity": {
         "value": 0.8641916929016004,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity": {
         "value": 0.3446402689076656,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity_normalized": {
         "value": 0.4377131125684225,
@@ -18,16 +18,16 @@
     }
   },
   "popular": {
-    "predictions_generated_at": "2026-06-26T15:10:14",
-    "predictions_processed_at": "2026-06-27T01:34:48",
+    "predictions_generated_at": "2026-06-27T19:49:18",
+    "predictions_processed_at": "2026-06-28T06:45:48",
     "metrics": {
       "topic_diversity": {
         "value": 0.7059714988069781,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity": {
         "value": 0.2591615725042415,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity_normalized": {
         "value": 0.3693426709908659,
@@ -37,15 +37,15 @@
   },
   "nrms": {
     "predictions_generated_at": "2026-06-09T00:34:55",
-    "predictions_processed_at": "2026-06-27T01:34:52",
+    "predictions_processed_at": "2026-06-28T06:45:49",
     "metrics": {
       "topic_diversity": {
         "value": 0.7034710132190252,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity": {
         "value": 0.31109891380481114,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity_normalized": {
         "value": 0.40084727848781143,
@@ -55,15 +55,15 @@
   },
   "lstur": {
     "predictions_generated_at": "2026-06-09T01:12:31",
-    "predictions_processed_at": "2026-06-27T01:34:56",
+    "predictions_processed_at": "2026-06-28T06:45:50",
     "metrics": {
       "topic_diversity": {
         "value": 0.6959573475962505,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity": {
         "value": 0.3062013350852219,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity_normalized": {
         "value": 0.38842601746790917,
@@ -72,20 +72,34 @@
     }
   },
   "ground_truth": {
-    "predictions_generated_at": "2026-06-25T20:28:30",
-    "predictions_processed_at": "2026-06-27T01:34:57",
+    "predictions_generated_at": "2026-06-27T19:49:39",
+    "predictions_processed_at": "2026-06-28T06:45:51",
     "metrics": {
       "topic_diversity": {
         "value": 0.8040301438121533,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity": {
         "value": 0.33013167860169207,
-        "calculated_at": "2026-06-27T13:31:30"
+        "calculated_at": "2026-06-28T06:45:51"
       },
       "content_diversity_normalized": {
         "value": 0.4019601186212262,
         "calculated_at": null
+      }
+    }
+  },
+  "naml": {
+    "predictions_generated_at": "2026-06-28T06:45:45",
+    "predictions_processed_at": "2026-06-28T06:45:51",
+    "metrics": {
+      "topic_diversity": {
+        "value": 0.7292181134998301,
+        "calculated_at": "2026-06-28T06:45:51"
+      },
+      "content_diversity": {
+        "value": 0.3035943419904102,
+        "calculated_at": "2026-06-28T06:45:51"
       }
     }
   }
