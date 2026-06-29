@@ -13,13 +13,37 @@ from scores import load_manifest
 from pipeline import run_pipeline
 
 
-# Diversity measures the pipeline can compute, with their display labels. topic is
-# always available; the content measures need a dataset that ships embeddings.
-_METRIC_LABELS = {
-    "topic_diversity": "topic diversity",
-    "content_diversity": "content diversity",
-    "content_diversity_normalized": "content diversity (normalized)",
-}
+# Short labels for the extra content-embedding spaces (mirrors the dashboard).
+_SPACE_LABELS = {"xlmr": "XLM-R", "bert": "BERT", "docvec": "doc2vec"}
+
+
+def _metric_label(key):
+    """Human label for a manifest metric key (incl. per-embedding-space variants)."""
+    if key == "topic_diversity":
+        return "topic diversity"
+    if key == "content_diversity":
+        return "content diversity"
+    if key == "content_diversity_normalized":
+        return "content diversity (normalized)"
+    # content_diversity_<space> or content_diversity_normalized_<space>
+    norm = "_normalized_" in key
+    name = key.rsplit("_", 1)[-1]
+    lbl = _SPACE_LABELS.get(name, name)
+    return f"content diversity ({lbl}, normalized)" if norm else f"content diversity ({lbl})"
+
+
+def _dataset_measures(cfg):
+    """Diversity measures applicable to a dataset, as manifest metric keys.
+
+    topic is always available; the default content measures need a
+    `content_diversity` config, and each extra embedding space in
+    `content_embeddings` adds its own content_diversity_<name> (+ _normalized_<name>)."""
+    measures = ["topic_diversity"]
+    if cfg["content_diversity"] is not None:
+        measures += ["content_diversity", "content_diversity_normalized"]
+    for name in cfg.get("content_embeddings", {}):
+        measures += [f"content_diversity_{name}", f"content_diversity_normalized_{name}"]
+    return measures
 
 
 def _ask_yes_no(question, default=False):
@@ -79,9 +103,7 @@ def interactive_main(argv):
 
     # Diversity measures applicable to this dataset (content needs embeddings), and
     # which of them already have a value in the run manifest.
-    measures = ["topic_diversity"]
-    if cfg["content_diversity"] is not None:
-        measures += ["content_diversity", "content_diversity_normalized"]
+    measures = _dataset_measures(cfg)
     existing_scores = load_manifest(out_dir)
 
     def measure_present(m):
@@ -110,7 +132,7 @@ def interactive_main(argv):
     print("  diversity measures:")
     for m in measures:
         status = "present" if measure_present(m) else "missing"
-        print(f"      {_METRIC_LABELS[m]:<30}: {status}")
+        print(f"      {_metric_label(m):<34}: {status}")
 
     # 4 — one question per recommender (default: build the missing cheap ones;
     # models must be opted into explicitly because training is expensive).
@@ -133,10 +155,10 @@ def interactive_main(argv):
     print("\nWhich diversity measures should be (re)calculated?")
     force_metrics = set()
     for m in measures:
-        is_expensive = m == "content_diversity_normalized"
+        is_expensive = m.startswith("content_diversity_normalized")
         default = normalized if is_expensive else not measure_present(m)
         extra = " (slow; per-impression)" if is_expensive else ""
-        if _ask_yes_no(f"  (re)calculate {_METRIC_LABELS[m]}{extra}?", default=default):
+        if _ask_yes_no(f"  (re)calculate {_metric_label(m)}{extra}?", default=default):
             force_metrics.add(m)
 
     print()

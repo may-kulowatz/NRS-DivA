@@ -1,211 +1,211 @@
 {
   "random": {
     "predictions_generated_at": "2026-06-26T22:29:05",
-    "predictions_processed_at": "2026-06-27T11:57:54",
+    "predictions_processed_at": "2026-06-29T05:09:00",
     "metrics": {
       "topic_diversity": {
         "value": 0.5801020107504752,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity": {
         "value": 0.7797639524538904,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized": {
         "value": 0.6722592530928152,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_xlmr": {
         "value": 0.0009355720083882004,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_bert": {
         "value": 0.03614486686954314,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_docvec": {
         "value": 0.18838426521324597,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_xlmr": {
         "value": 0.3621455159964043,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_bert": {
         "value": 0.3722971372753898,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_docvec": {
         "value": 0.4866674900580112,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       }
     }
   },
   "popular": {
     "predictions_generated_at": "2026-06-26T22:29:09",
-    "predictions_processed_at": "2026-06-27T11:57:56",
+    "predictions_processed_at": "2026-06-29T05:09:02",
     "metrics": {
       "topic_diversity": {
         "value": 0.5403846751030956,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity": {
         "value": 0.7617617212230797,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized": {
         "value": 0.6570779971091767,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_xlmr": {
         "value": 0.0009803522284622494,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_bert": {
         "value": 0.032253667304492896,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_docvec": {
         "value": 0.18807057662211238,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_xlmr": {
         "value": 0.39060761423001394,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_bert": {
         "value": 0.33039600917990464,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_docvec": {
         "value": 0.47342817001629695,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       }
     }
   },
   "ground_truth": {
     "predictions_generated_at": "2026-06-27T04:08:09",
-    "predictions_processed_at": "2026-06-27T11:57:56",
+    "predictions_processed_at": "2026-06-29T05:09:04",
     "metrics": {
       "topic_diversity": {
         "value": 0.5521105410764046,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity": {
         "value": 0.7660959258662099,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized": {
         "value": 0.6370141510380879,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_xlmr": {
         "value": 0.000921525845920635,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_bert": {
         "value": 0.03805472233267158,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_docvec": {
         "value": 0.18623587228407046,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_xlmr": {
         "value": 0.34036548721006976,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_bert": {
         "value": 0.38284323537336035,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_docvec": {
         "value": 0.46523397605144456,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       }
     }
   },
   "nrms": {
-    "predictions_generated_at": "2026-06-27T12:18:00",
-    "predictions_processed_at": "2026-06-27T12:21:09",
+    "predictions_generated_at": "2026-06-29T05:08:58",
+    "predictions_processed_at": "2026-06-29T05:09:04",
     "metrics": {
       "topic_diversity": {
-        "value": 0.9133683487519136,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.5252473491589953,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity": {
-        "value": 0.7777195722801881,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.7513725608263091,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized": {
-        "value": 0.627959764746359,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.6572641706933382,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_xlmr": {
-        "value": 0.0008897537705283495,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.0009092251048207861,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_bert": {
-        "value": 0.03756247020367556,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.03805619660139399,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_docvec": {
-        "value": 0.20876547488026648,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.18715478764225493,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_xlmr": {
-        "value": 0.1834346756403575,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.3561772179177622,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_bert": {
-        "value": 0.2697722520825752,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.473692853335483,
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_docvec": {
-        "value": 0.3543131406033817,
-        "calculated_at": "2026-06-27T15:55:00"
+        "value": 0.5091244614840118,
+        "calculated_at": "2026-06-29T05:09:04"
       }
     }
   },
   "lstur": {
     "predictions_generated_at": "2026-06-27T12:27:13",
-    "predictions_processed_at": "2026-06-27T12:34:46",
+    "predictions_processed_at": "2026-06-29T05:09:04",
     "metrics": {
       "topic_diversity": {
         "value": 0.8840673000079217,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity": {
         "value": 0.763045580006269,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized": {
         "value": 0.6965777171051136,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_xlmr": {
         "value": 0.0010049881050421758,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_bert": {
         "value": 0.03893146349948907,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_docvec": {
         "value": 0.19778614748948775,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_xlmr": {
         "value": 0.35587035114744076,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_bert": {
         "value": 0.41495993179347385,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       },
       "content_diversity_normalized_docvec": {
         "value": 0.5403682977032155,
-        "calculated_at": "2026-06-27T15:55:00"
+        "calculated_at": "2026-06-29T05:09:04"
       }
     }
   }
