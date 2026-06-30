@@ -1,12 +1,6 @@
-~~# `dataset_module`
+# `dataset_module`
 
-## INPUT
-Raw data
-
-## OUTPUT
-normalized data for processing
-
-Dataset adapters **and preparers**. For each dataset there is an *adapter* that
+Dataset adapters and preparers. For each dataset there is an *adapter* that
 parses its raw on-disk format into the normalized, dataset-agnostic structures
 defined in `common.py`, and a *preparer* that makes sure that raw format is
 present on disk in the first place (downloading or building it as needed). So the
