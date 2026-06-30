@@ -23,8 +23,8 @@ from ._sklearn import *
 _LAZY_MODELS = {
     "LSTURModel": ".lstur",
     "NRMSModel": ".nrms",
-    # "NPAModel": ".npa",
-    # "NAMLModel": ".naml",
+    "NPAModel": ".npa",
+    "NAMLModel": ".naml",
 }
 
 
