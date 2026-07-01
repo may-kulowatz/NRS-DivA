@@ -69,8 +69,7 @@ def _write_user_article_map(selections, article_meta, output_file):
 
     selections : iterable of (user_id, [article_id, ...]) — one item per
                  impression; ids for the same user are concatenated in order.
-    article_meta : {article_id: (topic, subtopic)} from a dataset adapter; only
-                 the topic (index 0) is written.
+    article_meta : {article_id: topic} from a dataset adapter.
 
     This is the single writer shared by every ``save_user_article_map*`` entry
     point; they differ only in how they produce the (user_id, chosen_ids) stream.
@@ -82,7 +81,7 @@ def _write_user_article_map(selections, article_meta, output_file):
 
     with open(output_file, "w", encoding="utf-8") as f:
         for user_id, articles in user_articles.items():
-            topics = [article_meta.get(a, ("unknown", "none"))[0] for a in articles]
+            topics = [article_meta.get(a, "unknown") for a in articles]
             f.write(
                 f"{user_id} ["
                 + ",".join(articles)
@@ -96,7 +95,7 @@ def save_user_article_map(topk_file, article_meta, output_file):
     """Aggregate an existing top-k file into per-user article/topic lists.
 
     topk_file    : a "{impr_id} {user_id} [pos] [ids]" file (top-k or ground truth)
-    article_meta : {article_id: (topic, subtopic)} from a dataset adapter
+    article_meta : {article_id: topic} from a dataset adapter
     """
     def selections():
         with open(topk_file, encoding="utf-8") as f:

@@ -105,9 +105,7 @@ Parses MIND's tab-separated `behaviors.tsv` / `news.tsv`. Inline `Nxxxx-1`
 ### `load_article_meta(news_file)`
 - **Pre:** `news_file` is UTF-8 MIND `news.tsv`; columns are
   `news_id, category, subcategory, title, ...` (≥3 columns used).
-- **Post:** returns `{news_id: (topic, subtopic)}`. `topic` is the category,
-  `subtopic` is the subcategory or the sentinel `"none"` when absent. Only
-  `topic` is consumed downstream; `subtopic` is retained in the tuple but unused.
+- **Post:** returns `{news_id: topic}`. `topic` is the category.
   Last line wins on duplicate ids.
 
 ### `load_titles(news_file)`
@@ -136,12 +134,10 @@ error on module re-import).
 ### `load_article_meta(articles_file)`
 - **Pre:** `articles_file` is an eb-nerd `articles.parquet` with columns
   `article_id, topics` (`topics` is a list of human-readable labels per article).
-- **Post:** returns `{article_id: (topics_str, "none")}`. `topics_str` joins all
+- **Post:** returns `{article_id: topics_str}`. `topics_str` joins all
   of an article's topics with `"|"` and replaces intra-label whitespace with
   `"_"` (e.g. `"Crime|Violent_crime"`) so the whitespace-delimited user-article
-  file stays parseable; `"none"` when the article has no topics. The `subtopic`
-  slot is always `"none"` (eb-nerd has no usable subcategory) and is unused
-  downstream.
+  file stays parseable; `"none"` when the article has no topics.
 
 ### `load_titles(articles_file)`
 - **Pre:** `articles_file` is an eb-nerd `articles.parquet` with columns

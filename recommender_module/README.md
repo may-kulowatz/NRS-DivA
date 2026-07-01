@@ -113,11 +113,9 @@ dataset-specific file format. `numpy` and `tqdm` are required.
 
 **`save_user_article_map(topk_file, article_meta, output_file)`**
 - **Pre:** `topk_file` is a `"{impr_id} {user_id} [pos] [ids]"` file (top-k or
-  ground truth); `article_meta` is `{id: (topic, subtopic)}` from an adapter
-  (only the topic is written).
+  ground truth); `article_meta` is `{id: topic}` from an adapter.
 - **Post:** writes the per-user map `"{user_id} [ids] [topics]"`, concatenating
-  ids across a user's impressions in order. Unknown ids map to
-  `("unknown", "none")`.
+  ids across a user's impressions in order. Unknown ids map to `"unknown"`.
 
 **`save_user_article_map_from_ranks(prediction_file, impressions, article_meta, output_file)`**
 - **Pre:** `prediction_file` is a full-rank `"impr_id [ranks]"` prediction (only

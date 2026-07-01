@@ -29,16 +29,16 @@ def load_impressions(behaviors_file):
 
 
 def load_article_meta(news_file):
-    """Read news.tsv into {news_id: (topic, subtopic)}.
+    """Read news.tsv into {news_id: topic}.
 
     news.tsv columns: news_id, category, subcategory, title, ...
-    Missing subcategory is normalized to "none".
+    The topic is the category (column 1).
     """
     meta = {}
     with open(news_file, encoding="utf-8") as f:
         for line in f:
             cols = line.rstrip("\n").split("\t")
-            meta[cols[0]] = (cols[1], cols[2] if cols[2] else "none")
+            meta[cols[0]] = cols[1]
     return meta
 
 

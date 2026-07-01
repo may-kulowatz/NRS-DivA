@@ -115,11 +115,11 @@ def test_multiple_topics_joined_with_pipe(tmp_path):
 
     # Several topics per article are kept, joined by "|", with spaces in a label
     # replaced by "_" so the whitespace-delimited file stays parseable.
-    assert meta["3001353"][0] == "Crime|Violent_crime"
+    assert meta["3001353"] == "Crime|Violent_crime"
     logger.info(
         "Multiple topics are joined with '|' and spaces become '_' — "
         "expected 'Crime|Violent_crime', actual %s",
-        meta["3001353"][0]
+        meta["3001353"]
     )
 
 
@@ -129,11 +129,11 @@ def test_single_topic_has_no_pipe(tmp_path):
     ])
     meta = load_article_meta(f)
 
-    assert meta["3012771"][0] == "Sport"
+    assert meta["3012771"] == "Sport"
     logger.info(
         "A single-topic article produces a plain topic with no separator — "
         "expected 'Sport', actual %s",
-        meta["3012771"][0]
+        meta["3012771"]
     )
 
 
@@ -143,25 +143,10 @@ def test_empty_topics_is_none(tmp_path):
     ])
     meta = load_article_meta(f)
 
-    assert meta["3001353"][0] == "none"
+    assert meta["3001353"] == "none"
     logger.info(
         "An article with no topics normalizes its topic to 'none' — expected 'none', actual %s",
-        meta["3001353"][0]
-    )
-
-
-def test_subtopic_always_none(tmp_path):
-    # eb-nerd subcategories don't map to a parent category, so no subtopic is emitted.
-    f = write_articles(tmp_path, [
-        (3012771, ["Sport", "Football"]),
-    ])
-    meta = load_article_meta(f)
-
-    assert meta["3012771"][1] == "none"
-    logger.info(
-        "Subtopic is always 'none' for eb-nerd (unmappable subcategories) — "
-        "expected 'none', actual %s",
-        meta["3012771"][1]
+        meta["3001353"]
     )
 
 

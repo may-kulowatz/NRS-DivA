@@ -17,17 +17,17 @@ def write_news(tmp_path, lines):
     return str(p)
 
 
-def test_article_meta_topic_and_subtopic(tmp_path):
+def test_article_meta_topic(tmp_path):
     # news.tsv: id, category, subcategory, title, ...
     f = write_news(tmp_path, [
         "N1\tsports\tgolf\tTiger wins again\tabstract\turl",
-        "N2\tnews\t\tBreaking story\tabstract\turl",  # empty subcategory -> "none"
+        "N2\tnews\t\tBreaking story\tabstract\turl",
     ])
     meta = load_article_meta(f)
 
-    assert meta["N1"] == ("sports", "golf")
-    assert meta["N2"] == ("news", "none")
-    logger.info("Article meta parses topic/subtopic; empty subcategory -> 'none'. actual %s", meta)
+    assert meta["N1"] == "sports"
+    assert meta["N2"] == "news"
+    logger.info("Article meta maps each news id to its category (topic). actual %s", meta)
 
 
 def test_titles_from_column_three(tmp_path):

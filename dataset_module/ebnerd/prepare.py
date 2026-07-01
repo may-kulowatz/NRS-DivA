@@ -1,8 +1,7 @@
 """Ensure the eb-nerd dataset's raw inputs exist.
 
-The preparation analog of ``ebnerd/adapter``. eb-nerd has no public
-direct-download URL, so unlike MIND there is nothing to fetch — preparation only
-*verifies* the inputs are present and raises with download instructions if not.
+EB-NeRD has no public direct-download URL, so there is nothing to fetch
+— preparation only *verifies* the inputs are present.
 It exposes the two functions every ``dataset_module`` prepare module shares so
 the pipeline can call them interchangeably (see ``config.DATASETS``):
 
@@ -17,7 +16,7 @@ import os
 
 from dataset_module.common import default_input_dir
 
-# The dataset's folder name under data/datasets/ (its default standalone location).
+# The dataset's folder name under data/datasets/
 DIR = "ebnerd"
 
 # eb-nerd inputs the pipeline reads, as (subdir..., filename) under the dataset

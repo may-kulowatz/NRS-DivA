@@ -1,27 +1,18 @@
-"""eb-nerd (Ekstra Bladet) dataset adapter.
+"""EB-NeRD (Ekstra Bladet) dataset adapter.
 
-Parses eb-nerd's Parquet files into the same normalized structures the MIND
+Parses eb-nerd's parquet files into the same normalized structures the MIND
 adapter produces, so the recommenders and output writers can be reused
 unchanged. All eb-nerd-specific format knowledge lives here:
 
   * behaviors.parquet — one row per impression. Candidates are in
     `article_ids_inview`; clicked articles are listed explicitly in
-    `article_ids_clicked` (rather than MIND's inline `-1` / `-0` labels).
+    `article_ids_clicked`.
   * articles.parquet — `topics` is a LIST of human-readable topic labels per
     article (e.g. ["Crime", "Violent crime"]); all of them are kept so topic
-    diversity can account for multiple topics. The numeric `subcategory` codes
-    are opaque (they do not map to any parent category), so they are NOT usable
-    as MIND-style nested subtopics; the pipeline skips subtopic diversity for
-    eb-nerd and the subtopic field is left as "none".
+    diversity can account for multiple topics.
 
-Article ids are integers in eb-nerd; we stringify them so downstream code can
+Article ids are integers in EB-NeRD; we stringify them so downstream code can
 treat ids uniformly across datasets.
-
-Parquet is read via pyarrow directly (not pandas.read_parquet). Going through
-pandas' parquet engine can re-register pandas' pyarrow extension types and
-raise "A type extension with name pandas.period already defined" when modules
-are re-imported (e.g. Solara's dev-server hot-reload). Reading with pyarrow
-avoids that path entirely.
 
 Requires pyarrow.
 """
@@ -67,15 +58,12 @@ def load_impressions(behaviors_file):
 
 
 def load_article_meta(articles_file):
-    """Read articles.parquet into {article_id: (topics, subtopic)}.
+    """Read articles.parquet into {article_id: topic}.
 
-    topics   = all of the article's `topics` labels, joined with "|" into one
-               group (e.g. "Crime|Violent_crime"). Whitespace inside a label is
-               replaced with "_" so the whitespace-delimited user-article file
-               stays parseable. "none" when the article has no topics.
-    subtopic = always "none": eb-nerd's numeric subcategory codes cannot be
-               mapped to a parent category, so they are not valid subtopics and
-               the pipeline does not compute subtopic diversity for eb-nerd.
+    topic = all of the article's `topics` labels, joined with "|" into one group
+            (e.g. "Crime|Violent_crime"). Whitespace inside a label is replaced
+            with "_" so the whitespace-delimited user-article file stays
+            parseable. "none" when the article has no topics.
     """
     cols = _read_columns(articles_file, ["article_id", "topics"])
     meta = {}
@@ -84,7 +72,7 @@ def load_article_meta(articles_file):
             topics_str = "none"
         else:
             topics_str = "|".join("_".join(t.split()) for t in topics)
-        meta[str(article_id)] = (topics_str, "none")
+        meta[str(article_id)] = topics_str
     return meta
 
 
