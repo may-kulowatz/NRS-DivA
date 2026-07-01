@@ -1,15 +1,10 @@
 """Ensure the MIND dataset's raw inputs exist, fetching whatever is missing.
 
-The preparation analog of ``mind/adapter`` — where the adapter *parses* MIND's
-files, this module *acquires* them. It exposes the two functions every
-``dataset_module`` prepare module shares, so the pipeline can call them
-interchangeably (see the ``"prepare"`` entries in ``config.DATASETS``):
+The preparation — where the adapter *parses* MIND's files,
+this module *acquires* them. It exposes the two functions every
+``dataset_module`` prepare module shares.
 
   * ``ensure_raw_data(in_dir)`` — fetches the MIND 'small' dev + train splits.
-    The dev split is the *essential* input a run can't proceed without, so a
-    failure to obtain it aborts the run; the train split is only needed to
-    (re)train a model, so it is fetched best-effort and its absence doesn't block
-    scoring. Called once, eagerly, at the start of a run.
 
   * ``ensure_utils(in_dir)`` — fetches the *optional* MIND utils bundle (word
     embeddings, dictionaries, model .yaml configs) that only content diversity
@@ -102,8 +97,7 @@ def ensure_utils(in_dir):
 
     ``in_dir`` is the dataset's input directory (e.g. data/datasets/mind). Returns
     True if a download happened, False if the files were already present. Raises
-    on network/download errors — callers that want to degrade gracefully should
-    catch the exception.
+    on network/download errors.
     """
     utils_dir = os.path.join(in_dir, "utils")
     if all(os.path.exists(os.path.join(utils_dir, f)) for f in _MIND_UTILS_REQUIRED):

@@ -32,7 +32,7 @@ import shutil
 
 from dataset_module.common import default_input_dir
 
-# The dataset's folder name under data/datasets/ (its default standalone location).
+# The dataset's folder name under data/datasets/
 DIR = "mind_news"
 
 # MIND's parent category we keep; everything else is dropped.
@@ -73,10 +73,10 @@ def _filter_behaviors_file(src_behaviors, dst_behaviors, news_ids):
     behaviors.tsv columns: impr_id, user_id, time, history, impressions
     where ``impressions`` is space-separated ``Nxxxx-1`` (clicked) / ``Nxxxx-0``.
 
-    An impression is kept only when, restricted to its news candidates, it still
-    has at least two of them and at least one was clicked. The candidate list is
-    rewritten to the news candidates (labels preserved, original order kept) and
-    the history to its news-only ids. Returns the number of impressions kept.
+    The candidate list is rewritten to the news candidates
+    (labels preserved, original order kept) and the history to its news-only ids.
+
+    Returns the number of impressions kept.
 
     Kept impressions are renumbered ``1..N`` in output order: the MIND model
     scripts key their predictions by an impression's line position, and MIND
@@ -171,9 +171,11 @@ def ensure_utils(in_dir):
     ``in_dir`` is the mind_news input dir (data/datasets/mind_news). mind_news is
     treated as a fully independent dataset, so it keeps its own copy of the utils
     (word embeddings, dictionaries, model .yaml configs) under ``in_dir/utils``
-    rather than reaching into the sibling MIND folder. The bundle is vocabulary-
-    level and identical to MIND's, so it is copied from there (downloading the
-    MIND utils first if they aren't present). Returns True if a copy happened.
+    rather than reaching into the sibling MIND folder. The bundle is identical
+    to MIND's, so it is copied from there
+    (downloading the MIND utils first if they aren't present).
+
+    Returns True if a copy happened.
     """
     utils_dir = os.path.join(in_dir, "utils")
     if all(os.path.exists(os.path.join(utils_dir, f)) for f in _UTILS_REQUIRED):

@@ -5,11 +5,10 @@ EB-NeRD has no public direct-download URL, so there is nothing to fetch
 It exposes the two functions every ``dataset_module`` prepare module shares so
 the pipeline can call them interchangeably (see ``config.DATASETS``):
 
-  * ``ensure_raw_data(in_dir)`` — checks the essential inputs the adapter reads
-    (articles.parquet + the validation behaviors.parquet); raises if missing.
-  * ``ensure_utils(in_dir)`` — no-op: eb-nerd's content diversity uses the
-    contrastive vectors shipped with the dataset (contrastive_vector.parquet),
-    so there is no optional bundle to fetch.
+  * ``ensure_raw_data(in_dir)`` - checks the inputs the adapter reads
+    (articles.parquet + the validation behaviors.parquet)
+  * ``ensure_utils(in_dir)`` - EB-NeRD's content diversity uses the
+    contrastive vectors shipped with the dataset (contrastive_vector.parquet).
 """
 
 import os
@@ -19,7 +18,7 @@ from dataset_module.common import default_input_dir
 # The dataset's folder name under data/datasets/
 DIR = "ebnerd"
 
-# eb-nerd inputs the pipeline reads, as (subdir..., filename) under the dataset
+# EB-NeRD inputs the pipeline reads, as (subdir..., filename) under the dataset
 # directory. There is no public direct-download URL, so these are only checked.
 _EBNERD_REQUIRED = (
     ("articles.parquet",),
@@ -28,7 +27,7 @@ _EBNERD_REQUIRED = (
 
 
 def ensure_raw_data(in_dir):
-    """Verify eb-nerd's inputs are present under ``in_dir``; raise if not.
+    """Verify EB-NeRD's inputs are present under ``in_dir``; raise if not.
 
     ``in_dir`` is the dataset's input directory (e.g. data/datasets/ebnerd).
     Always returns False (nothing is ever downloaded).
@@ -40,15 +39,15 @@ def ensure_raw_data(in_dir):
     ]
     if missing:
         raise FileNotFoundError(
-            f"eb-nerd inputs missing under {in_dir}: {', '.join(missing)}. "
-            "eb-nerd has no public direct-download URL; download the dataset from "
+            f"EB-NeRD inputs missing under {in_dir}: {', '.join(missing)}. "
+            "EB-NeRD has no public direct-download URL; download the dataset from "
             "https://recsys.eb.dk/dataset/ and unpack it there."
         )
     return False
 
 
 def ensure_utils(in_dir):
-    """No optional bundle to fetch for eb-nerd; content diversity is precomputed."""
+    """No optional bundle to fetch"""
     return False
 
 
