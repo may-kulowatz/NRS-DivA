@@ -5,7 +5,7 @@
     "metrics": {
       "topic_diversity": {
         "value": 0.5801020107504752,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T14:50:29"
       },
       "content_diversity": {
         "value": 0.7797639524538904,
@@ -17,7 +17,7 @@
       },
       "content_diversity_xlmr": {
         "value": 0.0009355720083882004,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T15:19:06"
       },
       "content_diversity_bert": {
         "value": 0.03614486686954314,
@@ -47,7 +47,7 @@
     "metrics": {
       "topic_diversity": {
         "value": 0.5403846751030956,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T14:50:29"
       },
       "content_diversity": {
         "value": 0.7617617212230797,
@@ -59,7 +59,7 @@
       },
       "content_diversity_xlmr": {
         "value": 0.0009803522284622494,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T15:19:06"
       },
       "content_diversity_bert": {
         "value": 0.032253667304492896,
@@ -89,7 +89,7 @@
     "metrics": {
       "topic_diversity": {
         "value": 0.5521105410764046,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T14:50:29"
       },
       "content_diversity": {
         "value": 0.7660959258662099,
@@ -101,7 +101,7 @@
       },
       "content_diversity_xlmr": {
         "value": 0.000921525845920635,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T15:19:06"
       },
       "content_diversity_bert": {
         "value": 0.03805472233267158,
@@ -131,7 +131,7 @@
     "metrics": {
       "topic_diversity": {
         "value": 0.5252473491589953,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T14:50:29"
       },
       "content_diversity": {
         "value": 0.7513725608263091,
@@ -143,7 +143,7 @@
       },
       "content_diversity_xlmr": {
         "value": 0.0009092251048207861,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T15:19:06"
       },
       "content_diversity_bert": {
         "value": 0.03805619660139399,
@@ -173,7 +173,7 @@
     "metrics": {
       "topic_diversity": {
         "value": 0.5291735155586079,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T14:50:29"
       },
       "content_diversity": {
         "value": 0.7420263328148157,
@@ -185,7 +185,7 @@
       },
       "content_diversity_xlmr": {
         "value": 0.0009288336231755111,
-        "calculated_at": "2026-06-30T06:06:09"
+        "calculated_at": "2026-07-01T15:19:06"
       },
       "content_diversity_bert": {
         "value": 0.03738737500579028,
