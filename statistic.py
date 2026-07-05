@@ -95,7 +95,11 @@ from scipy import stats
 # match the pipeline's aggregates exactly.
 from config import DATASETS, input_dir, output_dir
 from diversity_module.topic_diversity import _parse_user_articles
-from diversity_module.content_diversity import load_news_embeddings, _ild
+from diversity_module.content_diversity import (
+    load_news_embeddings,
+    load_precomputed_embeddings,
+    _ild,
+)
 
 
 # Recommenders to test against the ground-truth baseline, in display order.
@@ -424,7 +428,11 @@ def run(dataset="MIND"):
         raise SystemExit(f"No ground-truth file at {gt_path}")
     print(f"Dataset {dataset}: testing {available} against ground truth\n")
 
-    # Load title embeddings once for content diversity (word-average datasets).
+    # Load article embeddings once for content diversity. Two schemes, matching
+    # the pipeline (diversity_module.__main__._content_spaces):
+    #   * word_average (MIND / mind_news): mean of title word-embeddings.
+    #   * precomputed  (ebnerd): one ready-made document vector per article_id.
+    # The per-user ILD math is identical either way; only the source differs.
     cd_cfg = cfg.get("content_diversity")
     news_embeddings = None
     if cd_cfg and cd_cfg["kind"] == "word_average":
@@ -433,6 +441,10 @@ def run(dataset="MIND"):
             os.path.join(in_dir, *cfg["articles"]),
             os.path.join(in_dir, *cd_cfg["embedding"]),
             os.path.join(in_dir, *cd_cfg["word_dict"]),
+        )
+    elif cd_cfg and cd_cfg["kind"] == "precomputed":
+        news_embeddings = load_precomputed_embeddings(
+            os.path.join(in_dir, *cd_cfg["vectors"])
         )
 
     # (metric_key, per-user extractor) pairs we can compute for this dataset.
