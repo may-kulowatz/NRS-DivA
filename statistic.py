@@ -93,7 +93,7 @@ from scipy import stats
 
 # Reuse the project's parsing + diversity definitions so our per-user values
 # match the pipeline's aggregates exactly.
-from config import DATASETS, input_dir, output_dir
+from config import DATASETS, input_dir, output_dir, resolve_dataset
 from diversity_module.topic_diversity import _parse_user_articles
 from diversity_module.content_diversity import (
     load_news_embeddings,
@@ -411,8 +411,10 @@ def plot_effect_sizes(results, samples, metric, stats_dir):
 # Driver
 # --------------------------------------------------------------------------- #
 def run(dataset="MIND"):
-    if dataset not in DATASETS:
-        raise SystemExit(f"Unknown dataset {dataset!r}; choose from {list(DATASETS)}")
+    try:
+        dataset = resolve_dataset(dataset)  # accept MIND / mind / folder name
+    except ValueError as exc:
+        raise SystemExit(str(exc))
 
     out_dir = output_dir(dataset)
     in_dir = input_dir(dataset)

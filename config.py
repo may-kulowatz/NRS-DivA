@@ -122,11 +122,29 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_ROOT = os.path.join(_PROJECT_DIR, "data")
 
 
+def resolve_dataset(name):
+    """Return the canonical ``DATASETS`` key for ``name``, case-insensitively.
+
+    Accepts the registry key (``MIND``), any casing of it (``mind``), or the
+    on-disk folder name (``dir``), so every stage takes the same spelling and
+    users don't have to remember that prepare used the folder name. Raises
+    ``ValueError`` for an unknown dataset.
+    """
+    if name in DATASETS:
+        return name
+    aliases = {k.lower(): k for k in DATASETS}
+    aliases.update({cfg["dir"].lower(): k for k, cfg in DATASETS.items()})
+    key = aliases.get(name.lower()) if isinstance(name, str) else None
+    if key is None:
+        raise ValueError(f"Unknown dataset {name!r}; choose from {list(DATASETS)}")
+    return key
+
+
 def input_dir(dataset, data_root=DATA_ROOT):
     """Directory holding a dataset's raw input files."""
-    return os.path.join(data_root, "datasets", DATASETS[dataset]["dir"])
+    return os.path.join(data_root, "datasets", DATASETS[resolve_dataset(dataset)]["dir"])
 
 
 def output_dir(dataset, data_root=DATA_ROOT):
     """Directory holding a dataset's generated outputs."""
-    return os.path.join(data_root, "data_processed", DATASETS[dataset]["dir"])
+    return os.path.join(data_root, "data_processed", DATASETS[resolve_dataset(dataset)]["dir"])

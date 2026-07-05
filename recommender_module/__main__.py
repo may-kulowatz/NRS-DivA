@@ -23,20 +23,23 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import DATASETS
+from config import DATASETS, resolve_dataset
 from recommender_module.base import build_context
 from scores import load_manifest, save_manifest, record_stage_times
 
 
-def generate(dataset, only=None):
+def generate(dataset, only=None, skip_expensive=False):
     """(Re)generate ``dataset``'s recommenders — one of them, or all.
 
-    only : a single recommender name, or ``None`` to run every recommender.
+    only           : a single recommender name, or ``None`` to run every one.
+    skip_expensive : when running all, skip the ``expensive`` (model-training)
+                     recommenders — the cheap-and-fast path. Any model prediction
+                     already on disk is left untouched (and still gets scored).
     """
     cfg, ctx, recs = build_context(dataset)
 
     if only is None:
-        selected = recs
+        selected = [rec for rec in recs if not (skip_expensive and rec.expensive)]
     else:
         selected = [rec for rec in recs if rec.name == only]
         if not selected:
@@ -75,8 +78,8 @@ def main(argv=None):
         prog="python -m recommender_module",
         description="Generate a dataset's recommender predictions (no scoring).",
     )
-    p.add_argument("dataset", choices=list(DATASETS),
-                   help="dataset to run on")
+    p.add_argument("dataset",
+                   help=f"dataset to run on (one of {list(DATASETS)}, any case)")
     p.add_argument("recommender", nargs="?",
                    help="a single recommender to generate, e.g. random, popular, "
                         "ground_truth, nrms, lstur, naml (which ones exist depends "
@@ -85,6 +88,11 @@ def main(argv=None):
                    help="run every recommender on the dataset — WARNING: this can "
                         "take a long time, as it trains every model")
     args = p.parse_args(argv)
+
+    try:
+        args.dataset = resolve_dataset(args.dataset)
+    except ValueError as exc:
+        p.error(str(exc))
 
     if bool(args.recommender) == args.all:
         p.error("specify exactly one of: a recommender name, or --all")

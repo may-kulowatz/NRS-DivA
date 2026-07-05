@@ -21,7 +21,7 @@ import importlib
 import os
 from dataclasses import dataclass
 
-from config import DATASETS, DATA_ROOT, input_dir, output_dir
+from config import DATASETS, DATA_ROOT, input_dir, output_dir, resolve_dataset
 from recommender_module.common.ground_truth import (
     extract_ground_truth,
     save_ground_truth,
@@ -200,10 +200,10 @@ def build_context(dataset, seed=42, data_root=DATA_ROOT):
            where ``recommenders`` is in scoring order. No prediction or score files
            are written.
 
-    Raises ``ValueError`` for an unknown dataset name.
+    Raises ``ValueError`` for an unknown dataset name. The name is matched
+    case-insensitively (``MIND`` / ``mind`` / the folder name all resolve).
     """
-    if dataset not in DATASETS:
-        raise ValueError(f"Unknown dataset {dataset!r}; choose from {list(DATASETS)}")
+    dataset = resolve_dataset(dataset)
     cfg = DATASETS[dataset]
     adapter = cfg["adapter"]
 

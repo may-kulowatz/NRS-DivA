@@ -27,7 +27,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import DATASETS
+from config import DATASETS, resolve_dataset
 from recommender_module.base import build_context
 from scores import (
     MetricUnavailable,
@@ -216,8 +216,8 @@ def main(argv=None):
         prog="python -m diversity_module",
         description="Compute a dataset's diversity scores (no generation).",
     )
-    p.add_argument("dataset", choices=list(DATASETS),
-                   help="dataset to score")
+    p.add_argument("dataset",
+                   help=f"dataset to score (one of {list(DATASETS)}, any case)")
     p.add_argument("measure", nargs="?",
                    help="a single measure to compute, e.g. topic_diversity, "
                         "content_diversity, content_diversity_normalized (which "
@@ -231,6 +231,11 @@ def main(argv=None):
                         "take a while, as it includes the per-impression normalized "
                         "content diversity")
     args = p.parse_args(argv)
+
+    try:
+        args.dataset = resolve_dataset(args.dataset)
+    except ValueError as exc:
+        p.error(str(exc))
 
     if bool(args.measure) == args.all:
         p.error("specify exactly one of: a measure name, or --all")

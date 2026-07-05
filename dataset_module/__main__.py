@@ -39,14 +39,20 @@ def main(argv=None):
         prog="python -m dataset_module",
         description="Prepare (download / build) datasets' raw inputs.",
     )
-    p.add_argument("dataset", nargs="?", default=None, choices=list(_BY_DIR),
-                   help="dataset folder to prepare (default: all of them)")
+    p.add_argument("dataset", nargs="?", default=None,
+                   help=f"dataset to prepare (one of {list(_BY_DIR)}, any case; "
+                        "default: all of them)")
     p.add_argument("--all", action="store_true",
                    help="prepare every dataset (the default when no dataset is named)")
     args = p.parse_args(argv)
 
     if args.dataset and not args.all:
-        _prepare(_BY_DIR[args.dataset])
+        # Accept the registry key ("MIND") or the folder name ("mind"); every
+        # folder name is the lower-cased key, so one lookup handles both.
+        prep = _BY_DIR.get(args.dataset.lower())
+        if prep is None:
+            p.error(f"unknown dataset {args.dataset!r}; choose from {list(_BY_DIR)}")
+        _prepare(prep)
     else:
         for prep in _PREPARERS:
             _prepare(prep)

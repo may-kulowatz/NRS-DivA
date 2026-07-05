@@ -384,7 +384,7 @@ def PillGroup(options, selected, labels, on_select, enabled=None):
 # ---------------------------------------------------------------------------
 @solara.component
 def Page():
-    solara.Title("EchoBench — Diversity Dashboard")
+    solara.Title("NRS-DivA — Diversity Dashboard")
     # Make the app's primary accent green (pills, outlined buttons, etc.).
     solara.lab.theme.themes.light.primary = PRIMARY_GREEN
     solara.lab.theme.themes.dark.primary = PRIMARY_GREEN

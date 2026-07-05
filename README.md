@@ -16,7 +16,9 @@ IMPORTANT: Keep in MIND (haha): https://github.com/msnews/MIND/blob/master/MSR%2
  7. Add your own diversity metric
  8. Licence
 
-**If you want to test your prediction for the MIND challenge**:
+**Already have a `prediction.txt` in MIND-challenge format?** You can score it
+without writing any recommender logic — see
+[Add your own recommender](#add-your-own-recommender), option B.
 
 ## Quick start
 
@@ -54,80 +56,54 @@ matplotlib 3.10.9, tqdm 4.67.3, solara 1.57.4.
 
 ### Run
 
-**There is no single orchestrator script.** Each stage of the workflow is its own
-command, and you run the stages in order. Every command is **non-interactive**
-(no prompts). Stage 1 runs one recommender at a time (or `--all`); stage 2 scores
-them.
-
-The whole workflow for the MIND dataset is just:
+The quickest way is the one-command wrapper, which runs all three stages in order:
 
 ```bash
-python -m dataset_module                 # stage 0 — get the raw data (once)
-python -m recommender_module MIND --all  # stage 1 — generate every prediction (slow: trains models)
-python -m diversity_module MIND          # stage 2 — score them
+python -m nrsdiva MIND               # prepare -> generate -> score
+python -m nrsdiva MIND --dashboard   # ...then open the dashboard
+python -m nrsdiva MIND --train       # ...also (re)train the neural models (slow)
+```
+
+By default this generates only the cheap recommenders and scores any model
+predictions already shipped with the repo — so it finishes fast. Add `--train`
+to (re)train the neural models (needs TensorFlow).
+
+The wrapper is just a front door: each stage is still its own command, which you
+run directly for finer control (a single recommender, a single measure). Every
+command is non-interactive. See the [Command reference](#command-reference).
+
+```bash
+python -m dataset_module MIND            # stage 0 — get the raw data (once)
+python -m recommender_module MIND --all  # stage 1 — every prediction (slow: trains models)
+python -m diversity_module MIND --all    # stage 2 — every measure
 solara run dashboard.py                  # view the results (optional)
 ```
 
-Prepared prediction files are shipped with the repo, so for MIND you can usually
-skip straight to stage 2, or generate a single recommender with
-`python -m recommender_module MIND random`. See the
-[Command reference](#command-reference) for each stage's pre/post-conditions.
-
 ## Command reference
 
-In every command `<dataset>` is one of `MIND`, `ebnerd`, or `mind_news`. Run the
-stages in the order below; each stage's **PRE** is produced by the stage before
-it. (Note the dataset name is spelled `mind` — the folder name — for the prepare
-stage, but `MIND` for the recommender and diversity stages.)
+`<dataset>` is `MIND`, `ebnerd`, or `mind_news` — spelled in **any case** (the
+folder name works too). Run the stages in order; each stage's **PRE** is produced
+by the stage before it. Every command is non-interactive.
 
 ### Example workflows
 
-Each line is one command; run them top to bottom.
-
-**A. One recommender, one measure on MIND** (prepare → random → content diversity):
-
 ```bash
-python -m dataset_module mind                       # 1. prepare MIND's raw data
-python -m recommender_module MIND random            # 2. generate the random recommender
-python -m diversity_module MIND content_diversity random   # 3. score content diversity, random only
+# One recommender, one measure on MIND:
+python -m recommender_module MIND random                   # generate random
+python -m diversity_module MIND content_diversity random   # score content diversity for it
+
+# eb-nerd, one model (its files must already be on disk — no public download):
+python -m recommender_module ebnerd nrms                   # train + predict NRMS
+python -m diversity_module ebnerd content_diversity_xlmr nrms   # score one embedding space
 ```
 
-**B. The full run on MIND** (every recommender, every measure, then browse):
-
-```bash
-python -m dataset_module mind                       # 1. prepare the data
-python -m recommender_module MIND --all             # 2. all recommenders (slow: trains the models)
-python -m diversity_module MIND --all               # 3. all measures (slow: normalized metric)
-solara run dashboard.py                             # 4. view the results
-```
-
-**C. Compare recommenders on a single measure:**
-
-```bash
-python -m recommender_module MIND random            # 1. generate two recommenders
-python -m recommender_module MIND popular           #    (data already shipped for MIND)
-python -m diversity_module MIND topic_diversity     # 2. scores every recommender with a prediction
-```
-
-**D. Just one measure on one recommender** (MIND ships predictions, so no prepare needed):
-
-```bash
-python -m diversity_module MIND content_diversity random   # content diversity, random only
-```
-
-**E. eb-nerd** (its files must already be on disk — no public download):
-
-```bash
-python -m dataset_module ebnerd                            # 1. verify the raw inputs
-python -m recommender_module ebnerd nrms                   # 2. train + predict NRMS
-python -m diversity_module ebnerd content_diversity_xlmr nrms   # 3. score one space for NRMS
-```
+For the full run, prefer `python -m nrsdiva <dataset>` (see [Run](#run)).
 
 ### Stage 0 — Prepare data · `python -m dataset_module`
 
 ```bash
 python -m dataset_module                        # all datasets
-python -m dataset_module mind                   # one dataset (folder name: mind / ebnerd / mind_news)
+python -m dataset_module MIND                   # one dataset (MIND / ebnerd / mind_news)
 python -m dataset_module.mind.prepare           # equivalent single-dataset form
 ```
 
@@ -271,13 +247,17 @@ Not all scores are compatible with all recommender systems!
 ## Software Architecture
 
 ### Modules
-There is no orchestrator module. The work is split into small, single-purpose
-modules that each own one command-line stage; the "pipeline" is just the order you
-run them in (see the [Command reference](#command-reference)).
+The work is split into small, single-purpose modules that each own one
+command-line stage; the "pipeline" is just the order you run them in (see the
+[Command reference](#command-reference)).
 
-- `config.py` — the dataset registry (`DATASETS`) and the `input_dir` / `output_dir`
-  path helpers. Read-only consumers (e.g. the dashboard) import this without
-  pulling in the run machinery.
+- `nrsdiva.py` — the one-command front door. Runs the three stages in order for
+  a dataset; it only delegates to their entry points and holds no logic of its
+  own, so the stages stay independently runnable.
+- `config.py` — the dataset registry (`DATASETS`), the `resolve_dataset` name
+  helper (case-insensitive), and the `input_dir` / `output_dir` path helpers.
+  Read-only consumers (e.g. the dashboard) import this without pulling in the run
+  machinery.
 - `dataset_module/` — stage 0. `python -m dataset_module` prepares the raw inputs;
   each dataset has its own `adapter` (parses the format) and `prepare` module
   (acquires the files).
@@ -303,8 +283,99 @@ Each stage consumes the previous stage's output:
 - **stage 2** reads the per-user files and writes/updates the diversity scores in
   `data/data_processed/<dataset>/run_manifest.json`, which the dashboard reads.
 
+## Add your own recommender
+
+There are two ways to evaluate your own recommender, depending on whether you
+want to plug in **scoring logic** (option A) or you already have a **prediction
+file** (option B). Both reuse the existing recommender contract, so once your
+recommender is registered every diversity measure and the dashboard pick it up
+automatically.
+
+First, the one format everything hinges on. A **raw prediction file** lives at
+`data/data_processed/<dataset>/predictions/prediction_<name>.txt` and has one
+line per impression:
+
+```
+<impr_id> [r1,r2,...,rn]
+```
+
+`r1..rn` are the ranks your recommender assigns to that impression's candidate
+articles, **in the same order the dataset lists them**, with `1` = top
+recommendation. This is exactly the MIND-challenge leaderboard format. The
+pipeline then keeps, per impression, the top *k* candidates (where *k* is the
+number of articles the user actually clicked) and measures diversity over that
+set — so your ranking is compared to the ground truth on an equal footing.
+
+### Option A — paste your scoring logic
+
+Add a class to `recommender_module/base.py`. Subclass **`_RankRecommender`**
+(it already builds the processed per-user file and the per-impression view from
+your rank file), so the only method you write is `generate` — produce one score
+per candidate and hand the results to `save_predictions`, which turns scores into
+the rank file above:
+
+```python
+class MyRecommender(_RankRecommender):
+    name = "myrec"
+
+    def generate(self, ctx):
+        def results():
+            for imp in ctx.impressions:          # imp: (impr_id, user_id, timestamp,
+                                                 #       candidate_ids, labels)
+                scores = my_score(imp)           # 1-D array, one score per imp.candidate_ids
+                yield imp.impr_id, imp.user_id, scores
+        save_predictions(results(), self.raw_path(ctx))
+```
+
+Then register it in `build_recommenders` (any position before ground truth):
+
+```python
+recs = [RandomRecommender(), PopularRecommender(), MyRecommender()]
+```
+
+Now run it like any other recommender:
+
+```bash
+python -m dataset_module <dataset>                 # 0. prepare data (once)
+python -m recommender_module <dataset> myrec       # 1. generate your prediction
+python -m diversity_module <dataset> --all         # 2. score it
+```
+
+### Option B — you already have a `prediction.txt` (e.g. from the MIND challenge)
+
+Because the raw format *is* the MIND-challenge format, you skip generation
+entirely and let the scoring stage read your file:
+
+1. **Register a stub recommender** in `recommender_module/base.py` so the pipeline
+   knows the name (and won't try to regenerate it):
+
+   ```python
+   class MyRecommender(_RankRecommender):
+       name = "myrec"
+
+       def generate(self, ctx):
+           raise RuntimeError("myrec is supplied manually — skip stage 1")
+   ```
+
+   Add it to `build_recommenders` exactly as in option A.
+
+2. **Drop your file** at
+   `data/data_processed/<dataset>/predictions/prediction_myrec.txt`, in the
+   `<impr_id> [ranks]` format above. The impression ids and candidate ordering
+   must match the dataset's `behaviors` file.
+
+3. **Score it — stage 2 only** (it rebuilds the per-user file from your ranks; no
+   generation, no training):
+
+   ```bash
+   python -m dataset_module <dataset>            # once, so the adapter can read the data
+   python -m diversity_module <dataset> --all    # scores every recommender with a file, incl. yours
+   ```
+
+In both cases, add your recommender's diversity numbers to the significance tests
+by including `"myrec"` in the `RECOMMENDERS` list at the top of `statistic.py`.
+
 TODO:
-- explain own recommenders better
 - explain topic diversity better (especially formular)
 - add option to exclude users with less than x clicked articles
 - explain the ranking (topk from where) use

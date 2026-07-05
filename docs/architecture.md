@@ -1,6 +1,7 @@
-# EchoBench architecture
+# NRS-DivA architecture
 
-EchoBench is a three-stage news-recommender **diversity benchmark**: prepare
+NRS-DivA (News Recommender System – Diversity Analyser) is a three-stage
+news-recommender **diversity benchmark**: prepare
 datasets → generate recommendations → score diversity, with a dashboard reading
 the results.
 
