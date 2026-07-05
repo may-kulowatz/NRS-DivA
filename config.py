@@ -56,10 +56,11 @@ DATASETS = {
         # NRMS / LSTUR, trained on demand by the eb-nerd-specific scripts (which
         # write the same "{impr_id} [ranks]" prediction file MIND's models do).
         # Topic diversity also uses the multi-valued `topics` field.
-        "model_recs": ["nrms", "lstur"],
+        "model_recs": ["nrms", "lstur", "naml"],
         "model_trainers": {
             "nrms": ("recommender_module.ebnerd_specific.nrms_ebnerd", "run"),
             "lstur": ("recommender_module.ebnerd_specific.lstur_ebnerd", "run"),
+            "naml": ("recommender_module.ebnerd_specific.naml_ebnerd", "run"),
         },
         "train_split": "train",
         "content_diversity": {
