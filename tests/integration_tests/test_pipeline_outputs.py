@@ -65,7 +65,8 @@ def skip_if_missing(*paths):
     missing = [p for p in paths if not os.path.exists(p)]
     if missing:
         names = [os.path.basename(p) for p in missing]
-        pytest.skip(f"File(s) not found: {', '.join(names)} — run pipeline.py first")
+        pytest.skip(f"File(s) not found: {', '.join(names)} — "
+                    f"run `python -m recommender_module MIND` first")
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +76,8 @@ def skip_if_missing(*paths):
 def test_all_prediction_files_exist():
     missing = [name for name, path in ALL_FILES.items() if not os.path.exists(path)]
     assert missing == [], (
-        f"Missing prediction files: {missing}. Run pipeline.py to generate them."
+        f"Missing prediction files: {missing}. "
+        f"Run `python -m recommender_module MIND` to generate them."
     )
     logger.info(
         "All prediction files exist — expected all present, actual missing=%s", missing

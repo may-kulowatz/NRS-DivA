@@ -1,10 +1,10 @@
 """Dataset registry and path helpers.
 
-The single place that describes every dataset the pipeline knows about — its
-on-disk folder, which adapter parses it, where its raw inputs live, and which
-optional steps apply. Kept separate from the orchestration (``pipeline.py``) and
-the diversity-score computation (``scores.py``) so that read-only consumers (e.g.
-the dashboard) can import the configuration without pulling in the run machinery.
+The single place that describes every dataset the tool knows about — its on-disk
+folder, which adapter parses it, where its raw inputs live, and which optional
+steps apply. Kept separate from the run machinery (``recommender_module`` /
+``diversity_module``) and the score I/O (``scores.py``) so that read-only
+consumers (e.g. the dashboard) can import the configuration on its own.
 """
 
 import os
@@ -32,13 +32,7 @@ DATASETS = {
         "adapter": mind_adapter,
         "behaviors": ("MINDsmall_dev", "behaviors.tsv"),
         "articles": ("MINDsmall_dev", "news.tsv"),
-        # MIND ships pre-computed NRMS and LSTUR prediction files plus the
-        # embeddings/word-dict that content diversity needs.
         "model_recs": ["nrms", "lstur", "naml"],
-        # Per-model training scripts (module, function), imported lazily when a
-        # prediction must be (re)built. MIND-format datasets use the mind_specific
-        # scripts. (NRMS/LSTUR prediction files are shipped; NAML is trained on
-        # demand.)
         "model_trainers": {
             "nrms": ("recommender_module.mind_specific.nrms_mind", "run"),
             "lstur": ("recommender_module.mind_specific.lstur_mind", "run"),
@@ -47,16 +41,11 @@ DATASETS = {
         # Training split the model scripts read when a prediction file must be
         # (re)built; the dev split is taken from "behaviors" above.
         "train_split": "MINDsmall_train",
-        # "word_average": each article vector is the mean of its title's word
-        # embeddings, built from the (gitignored) utils bundle.
         "content_diversity": {
             "kind": "word_average",
             "embedding": ("utils", "embedding.npy"),
             "word_dict": ("utils", "word_dict.pkl"),
         },
-        # Prepares MIND: ensure_raw_data fetches the dev + train splits; ensure_utils
-        # fetches the (gitignored) embeddings/dicts on demand before content
-        # diversity reads them.
         "prepare": mind_prepare,
     },
     "ebnerd": {
@@ -72,12 +61,7 @@ DATASETS = {
             "nrms": ("recommender_module.ebnerd_specific.nrms_ebnerd", "run"),
             "lstur": ("recommender_module.ebnerd_specific.lstur_ebnerd", "run"),
         },
-        # Split sub-folders under data/datasets/ebnerd/ (each holds
-        # behaviors.parquet + history.parquet); the dev split is "behaviors" above.
         "train_split": "train",
-        # "precomputed": one ready-made document embedding per article, read
-        # straight from contrastive_vector.parquet (768-dim contrastive vectors).
-        # This is the *primary* content space (the bare content_diversity keys).
         "content_diversity": {
             "kind": "precomputed",
             "vectors": ("contrastive_vector.parquet",),

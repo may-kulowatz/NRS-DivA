@@ -6,10 +6,11 @@ a Diversity Score; the Diversity Score section then shows the real score for the
 chosen dataset + recommender.
 
 The dashboard is strictly a *viewer*: it never computes or writes anything. Scores
-are read straight from the run_manifest.json file the pipeline writes, and the
-example article lists from the pipeline's predictions_processed/ files. If a
-dataset's outputs haven't been generated yet, it shows a message pointing you at
-`python pipeline.py <dataset>`.
+are read straight from the run_manifest.json file the diversity stage writes, and
+the example article lists from the predictions_processed/ files the recommender
+stage writes. If a dataset's outputs haven't been generated yet, it shows a
+message pointing you at `python -m recommender_module <dataset>` and
+`python -m diversity_module <dataset>`.
 
 Run with:
     solara run dashboard.py
@@ -281,11 +282,12 @@ def read_score(dataset, recommender, metric):
             "the matching article embeddings aren't shipped for this dataset."
         )
 
-    # The normalized metrics are opt-in, so the hint must include the flag that
-    # produces them; the others are emitted by a plain run.
-    generate_cmd = f"python pipeline.py {dataset}"
+    # The normalized metrics are opt-in, so the scoring hint must include the flag
+    # that produces them; the others are emitted by a plain scoring run.
+    score_cmd = f"python -m diversity_module {dataset}"
     if metric.startswith("content_normalized"):
-        generate_cmd += " --normalized"
+        score_cmd += " --normalized"
+    generate_cmd = f"python -m recommender_module {dataset}  then  {score_cmd}"
     not_generated = (
         f"No {METRIC_LABELS[metric].lower()} for '{REC_LABELS[recommender]}' on "
         f"{DATASET_LABELS[dataset]} yet. Generate it with:  {generate_cmd}"
@@ -640,7 +642,8 @@ def ExamplesPanel(dataset, recommender):
     )
 
     if clicked_map is None or rec_map is None:
-        solara.Info(f"Generate outputs first with:  python pipeline.py {dataset}")
+        solara.Info(f"Generate outputs first with:  python -m recommender_module "
+                    f"{dataset}  then  python -m diversity_module {dataset}")
         return
     if not users or user is None:
         solara.Info("No users with both clicks and recommendations are available.")

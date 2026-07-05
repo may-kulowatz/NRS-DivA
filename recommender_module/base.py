@@ -5,10 +5,13 @@ and (2) build the processed per-user file the diversity metrics read. They diffe
 only in *how* — random/popular score candidates and write full-rank files, ground
 truth writes the clicks directly, and the model recommenders train a network.
 
-Modelling that as a small ``Recommender`` hierarchy lets the pipeline iterate a
-list instead of special-casing each one (separate branches, a "gt"/"ranks" switch,
-a trainer dispatch table). Adding a recommender is a new class here, not another
-branch in ``pipeline.py``.
+Modelling that as a small ``Recommender`` hierarchy lets callers iterate a list
+instead of special-casing each one (separate branches, a "gt"/"ranks" switch, a
+trainer dispatch table). Adding a recommender is a new class here.
+
+``build_context`` is the shared entry point both command-line stages
+(``python -m recommender_module`` and ``python -m diversity_module``) call to load
+a dataset once and get the recommenders + the ``RunContext`` they operate on.
 
 All file I/O is delegated to ``common/io.py`` and the ``common`` recommenders, so
 this module only wires those together behind the shared contract.
@@ -18,6 +21,7 @@ import importlib
 import os
 from dataclasses import dataclass
 
+from config import DATASETS, DATA_ROOT, input_dir, output_dir
 from recommender_module.common.ground_truth import (
     extract_ground_truth,
     save_ground_truth,
@@ -178,3 +182,52 @@ def build_recommenders(model_recs):
     recs += [ModelRecommender(name) for name in model_recs]
     recs.append(GroundTruthRecommender())
     return recs
+
+
+def build_context(dataset, seed=42, data_root=DATA_ROOT):
+    """Load a dataset once and build the ``RunContext`` + its recommenders.
+
+    The shared setup both command-line stages start from, so neither has to know
+    how a dataset is wired together.
+
+    PRE  : ``dataset`` is a key in ``config.DATASETS`` and its raw inputs exist
+           (fetched here via the dataset's ``prepare`` hook if a known download
+           source is configured; otherwise they must already be on disk — run
+           ``python -m dataset_module`` first). The behaviors + articles files are
+           read into memory.
+    POST : the output folders ``data_processed/<dataset>/predictions`` and
+           ``.../predictions_processed`` exist. Returns ``(cfg, ctx, recommenders)``
+           where ``recommenders`` is in scoring order. No prediction or score files
+           are written.
+
+    Raises ``ValueError`` for an unknown dataset name.
+    """
+    if dataset not in DATASETS:
+        raise ValueError(f"Unknown dataset {dataset!r}; choose from {list(DATASETS)}")
+    cfg = DATASETS[dataset]
+    adapter = cfg["adapter"]
+
+    in_dir = input_dir(dataset, data_root)
+    out_dir = output_dir(dataset, data_root)
+
+    # Make sure the dataset's essential raw inputs exist before anything reads
+    # them (the optional content-diversity bundle is fetched later, lazily).
+    cfg["prepare"].ensure_raw_data(in_dir)
+
+    behaviors_file = os.path.join(in_dir, *cfg["behaviors"])
+    articles_file = os.path.join(in_dir, *cfg["articles"])
+
+    raw_dir = os.path.join(out_dir, "predictions")
+    processed_dir = os.path.join(out_dir, "predictions_processed")
+    os.makedirs(raw_dir, exist_ok=True)
+    os.makedirs(processed_dir, exist_ok=True)
+
+    ctx = RunContext(
+        impressions=adapter.load_impressions(behaviors_file),
+        article_meta=adapter.load_article_meta(articles_file),
+        out_dir=out_dir, raw_dir=raw_dir, processed_dir=processed_dir,
+        seed=seed, in_dir=in_dir,
+        train_split=cfg.get("train_split"), dev_split=cfg["behaviors"][0],
+        model_trainers=cfg.get("model_trainers", {}),
+    )
+    return cfg, ctx, build_recommenders(cfg["model_recs"])

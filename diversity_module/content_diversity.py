@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 
 try:
-    # When imported as part of the package (e.g. from pipeline.py)
+    # When imported as part of the package (e.g. from diversity_module)
     from diversity_module.topic_diversity import _parse_user_articles
 except ImportError:
     # When run directly from inside the diversity_module/ directory

@@ -14,10 +14,7 @@ def topic_diversity(user_articles_file):
     """Average of (unique topics / total topic assignments) across users with more than one click.
 
     An article may carry several topics. They are stored as a single
-    "|"-separated group in the topics field (e.g. "Crime|Violent_crime"); all of
-    an article's topics are flattened and counted. For single-topic datasets
-    (e.g. MIND) each group is just one topic, so this reduces to the plain
-    unique-topics / number-of-articles ratio.
+    "|"-separated group in the topics field; all of an article's topics are flattened and counted.
 
     Articles with no topics are stored as the sentinel "none"; these are
     filtered out and contribute to neither the unique count nor the total. A
