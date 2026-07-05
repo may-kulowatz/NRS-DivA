@@ -15,9 +15,7 @@ def processed_filename(name):
 
     Ground truth is the users' actual clicks, not a prediction, so it drops the
     "prediction_" prefix: ``processed_ground_truth.txt`` vs
-    ``prediction_processed_<rec>.txt``. Single source of truth for this naming,
-    shared by the pipeline (which writes the files) and the dashboard (which
-    reads them).
+    ``prediction_processed_<rec>.txt``.
     """
     if name == "ground_truth":
         return "processed_ground_truth.txt"
@@ -28,9 +26,6 @@ def save_predictions(results, output_file):
     """Write full per-candidate rankings (rank 1 = highest score).
 
     results: iterable of (impr_id, user_id, scores) where scores is a 1-D array.
-    The user_id is *not* written: every prediction file uses the same
-    ``"{impr_id} [ranks]"`` layout (matching the model recommenders' output), and
-    downstream readers take the user from the impressions, not the file.
     """
     with open(output_file, "w", encoding="utf-8") as f:
         for impr_id, _user_id, scores in tqdm(results):
