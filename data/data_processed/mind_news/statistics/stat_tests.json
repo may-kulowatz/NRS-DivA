@@ -1,6 +1,6 @@
 [
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.8409137936887232,
     "mean_ground_truth": 0.7783438185899094,
     "mean_difference": 0.06256997509881386,
@@ -22,7 +22,7 @@
     "recommender": "random"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.8046049051207984,
     "mean_ground_truth": 0.7783438185899094,
     "mean_difference": 0.026261086530889145,
@@ -44,7 +44,7 @@
     "recommender": "popular"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.6966111230049963,
     "mean_ground_truth": 0.7783438185899094,
     "mean_difference": -0.08173269558491296,
@@ -66,7 +66,7 @@
     "recommender": "nrms"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.7082579874908765,
     "mean_ground_truth": 0.7783438185899094,
     "mean_difference": -0.07008583109903285,
@@ -88,7 +88,7 @@
     "recommender": "lstur"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.7003506661671235,
     "mean_ground_truth": 0.7783438185899094,
     "mean_difference": -0.07799315242278584,
@@ -110,7 +110,7 @@
     "recommender": "naml"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.33866294956195786,
     "mean_ground_truth": 0.31000839889520276,
     "mean_difference": 0.028654550666755017,
@@ -132,7 +132,7 @@
     "recommender": "random"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.2669239339989806,
     "mean_ground_truth": 0.31000839889520276,
     "mean_difference": -0.04308446489622216,
@@ -154,7 +154,7 @@
     "recommender": "popular"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.26871241282327485,
     "mean_ground_truth": 0.31000839889520276,
     "mean_difference": -0.041295986071928,
@@ -176,7 +176,7 @@
     "recommender": "nrms"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.2813219660306077,
     "mean_ground_truth": 0.31000839889520276,
     "mean_difference": -0.02868643286459502,
@@ -198,7 +198,7 @@
     "recommender": "lstur"
   },
   {
-    "n_users": 3901,
+    "n": 3901,
     "mean_recommender": 0.2639619620303247,
     "mean_ground_truth": 0.31000839889520276,
     "mean_difference": -0.04604643686487812,
@@ -217,6 +217,116 @@
     "wilcoxon_p_adj": 1.1894217813020386e-109,
     "dataset": "mind_news",
     "metric": "content_diversity",
+    "recommender": "naml"
+  },
+  {
+    "n": 2709,
+    "mean_recommender": 0.4177738428537393,
+    "mean_ground_truth": 0.3480509177363368,
+    "mean_difference": 0.06972292511740251,
+    "ci95_low": 0.05746810293651544,
+    "ci95_high": 0.08197774729828958,
+    "direction": "above",
+    "t_statistic": 11.156059701554122,
+    "t_pvalue": 2.7398776173733604e-28,
+    "wilcoxon_statistic": 1278441.0,
+    "wilcoxon_pvalue": 4.557848031172165e-31,
+    "cohen_dz": 0.21434153037707213,
+    "effect_size_label": "small",
+    "shapiro_pvalue": 1.5416187609458632e-11,
+    "differences_normal": false,
+    "t_p_adj": 8.219632852120082e-28,
+    "wilcoxon_p_adj": 1.3673544093516496e-30,
+    "dataset": "mind_news",
+    "metric": "content_diversity_normalized",
+    "recommender": "random"
+  },
+  {
+    "n": 2709,
+    "mean_recommender": 0.32529904253086805,
+    "mean_ground_truth": 0.3480509177363368,
+    "mean_difference": -0.022751875205468775,
+    "ci95_low": -0.03375256329110441,
+    "ci95_high": -0.011751187119833141,
+    "direction": "below",
+    "t_statistic": -4.055455037902607,
+    "t_pvalue": 5.144925072992104e-05,
+    "wilcoxon_statistic": 1508789.0,
+    "wilcoxon_pvalue": 0.008362612502286914,
+    "cohen_dz": -0.0779175141092476,
+    "effect_size_label": "negligible",
+    "shapiro_pvalue": 1.7918090006726036e-22,
+    "differences_normal": false,
+    "t_p_adj": 5.144925072992104e-05,
+    "wilcoxon_p_adj": 0.008362612502286914,
+    "dataset": "mind_news",
+    "metric": "content_diversity_normalized",
+    "recommender": "popular"
+  },
+  {
+    "n": 2709,
+    "mean_recommender": 0.28369126997396776,
+    "mean_ground_truth": 0.3480509177363368,
+    "mean_difference": -0.06435964776236905,
+    "ci95_low": -0.07557933016057046,
+    "ci95_high": -0.05313996536416764,
+    "direction": "below",
+    "t_statistic": -11.248000836994963,
+    "t_pvalue": 1.016007022827707e-28,
+    "wilcoxon_statistic": 1125826.0,
+    "wilcoxon_pvalue": 3.9513550921242764e-36,
+    "cohen_dz": -0.21610799669243702,
+    "effect_size_label": "small",
+    "shapiro_pvalue": 2.0441668224105498e-19,
+    "differences_normal": false,
+    "t_p_adj": 4.064028091310828e-28,
+    "wilcoxon_p_adj": 1.5805420368497106e-35,
+    "dataset": "mind_news",
+    "metric": "content_diversity_normalized",
+    "recommender": "nrms"
+  },
+  {
+    "n": 2709,
+    "mean_recommender": 0.31453867917657075,
+    "mean_ground_truth": 0.3480509177363368,
+    "mean_difference": -0.033512238559766,
+    "ci95_low": -0.044645466001516115,
+    "ci95_high": -0.02237901111801588,
+    "direction": "below",
+    "t_statistic": -5.902345152703529,
+    "t_pvalue": 4.030159252342642e-09,
+    "wilcoxon_statistic": 1298733.5,
+    "wilcoxon_pvalue": 2.19925216337765e-12,
+    "cohen_dz": -0.11340183960004513,
+    "effect_size_label": "negligible",
+    "shapiro_pvalue": 7.5327638519359855e-19,
+    "differences_normal": false,
+    "t_p_adj": 8.060318504685285e-09,
+    "wilcoxon_p_adj": 4.3985043267553e-12,
+    "dataset": "mind_news",
+    "metric": "content_diversity_normalized",
+    "recommender": "lstur"
+  },
+  {
+    "n": 2709,
+    "mean_recommender": 0.27476273211031066,
+    "mean_ground_truth": 0.3480509177363368,
+    "mean_difference": -0.07328818562602613,
+    "ci95_low": -0.08425165097558748,
+    "ci95_high": -0.062324720276464775,
+    "direction": "below",
+    "t_statistic": -13.107756545625834,
+    "t_pvalue": 4.1900736228727934e-38,
+    "wilcoxon_statistic": 1027598.0,
+    "wilcoxon_pvalue": 5.7623962504063646e-49,
+    "cohen_dz": -0.25183950901662316,
+    "effect_size_label": "small",
+    "shapiro_pvalue": 6.425813040666831e-24,
+    "differences_normal": false,
+    "t_p_adj": 2.0950368114363965e-37,
+    "wilcoxon_p_adj": 2.881198125203182e-48,
+    "dataset": "mind_news",
+    "metric": "content_diversity_normalized",
     "recommender": "naml"
   }
 ]

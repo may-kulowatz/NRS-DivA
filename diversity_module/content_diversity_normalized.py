@@ -25,7 +25,7 @@ from sklearn.metrics.pairwise import cosine_distances
 from diversity_module.content_diversity_ebnerd import IntralistDiversity
 
 
-def normalized_content_diversity(
+def per_impression_normalized_content_diversity(
     impressions,
     recommended_by_impr,
     embeddings,
@@ -34,7 +34,7 @@ def normalized_content_diversity(
     max_combinations=1000,
     seed=42,
 ):
-    """Average normalized intra-list content diversity across impressions.
+    """``{impr_id: normalized score}`` for every scorable impression.
 
     impressions          : list of Impression records (carry candidate_ids).
     recommended_by_impr  : {impr_id: [article_id, ...]} the recommender chose.
@@ -47,12 +47,15 @@ def normalized_content_diversity(
     An impression is scored only when its recommended set has >= 2 embeddable
     articles and its candidate pool has more embeddable articles than were
     recommended (otherwise there is no room for the selection to be more or less
-    diverse). Returns the mean normalized score, or 0.0 if nothing was scorable.
+    diverse). ``ILD_min`` / ``ILD_max`` depend only on the candidate pool and the
+    selection size, so for a fixed ``seed`` they are identical across recommenders
+    on the same impression — which keeps a recommender-vs-ground-truth paired
+    difference clean (only the shared denominator is sampled).
     """
     div = IntralistDiversity()
     lookup = {aid: {lookup_key: v} for aid, v in embeddings.items()}
 
-    per_impr = []
+    per_impr = {}
     for imp in impressions:
         rec_ids = [r for r in recommended_by_impr.get(imp.impr_id, []) if r in lookup]
         if len(rec_ids) < 2:
@@ -76,6 +79,29 @@ def normalized_content_diversity(
             continue
         # Clip: with sampling the estimated min/max can sit just inside the true
         # range, which would push the ratio slightly outside [0, 1].
-        per_impr.append(float(np.clip((actual - d_min) / (d_max - d_min), 0.0, 1.0)))
+        per_impr[imp.impr_id] = float(
+            np.clip((actual - d_min) / (d_max - d_min), 0.0, 1.0)
+        )
 
-    return float(np.mean(per_impr)) if per_impr else 0.0
+    return per_impr
+
+
+def normalized_content_diversity(
+    impressions,
+    recommended_by_impr,
+    embeddings,
+    *,
+    lookup_key="vector",
+    max_combinations=1000,
+    seed=42,
+):
+    """Average normalized intra-list content diversity across impressions.
+
+    Thin wrapper over ``per_impression_normalized_content_diversity`` — the mean of
+    its per-impression scores (0.0 if nothing was scorable).
+    """
+    per_impr = per_impression_normalized_content_diversity(
+        impressions, recommended_by_impr, embeddings,
+        lookup_key=lookup_key, max_combinations=max_combinations, seed=seed,
+    )
+    return float(np.mean(list(per_impr.values()))) if per_impr else 0.0

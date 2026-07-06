@@ -34,11 +34,23 @@ sample reproduces the manifest's aggregate number:
                         cosine similarity of the title embeddings of the user's
                         articles. Needs >=2 embeddable articles.
 
+We ALSO test one PER-IMPRESSION metric, paired by impression rather than by user:
+
+  * content_diversity_normalized : per impression, the recommended set's ILD
+                        rescaled to [0, 1] against the min/max ILD achievable from
+                        that impression's candidate pool (how well the recommender
+                        exploited the diversity actually available, not how diverse
+                        the pool happened to be). Rebuilt from the impressions +
+                        each recommender's picks (not the per-user files). The
+                        min/max are the same for every recommender on a given
+                        impression, so they cancel in the paired difference — only
+                        the shared denominator is sampling-estimated. Slow.
+
 THE STATISTICS WE COMPUTE  (per recommender x metric)
 -----------------------------------------------------
-Let d_i = value_recommender(u_i) - value_ground_truth(u_i) over the users u_i
-present (and scorable) in BOTH files. We summarize and test this difference
-sample d:
+Let d_i = value_recommender(i) - value_ground_truth(i) over the users (or, for the
+normalized metric, the impressions) i present and scorable in BOTH. We summarize
+and test this difference sample d:
 
   1. Means + mean difference (mean(d)). Its SIGN is the headline: d>0 the
      recommender is MORE diverse than ground truth, d<0 LESS diverse.
@@ -94,12 +106,20 @@ from scipy import stats
 # Reuse the project's parsing + diversity definitions so our per-user values
 # match the pipeline's aggregates exactly.
 from config import DATASETS, input_dir, output_dir, resolve_dataset
+from recommender_module.base import build_context
 from diversity_module.topic_diversity import _parse_user_articles
 from diversity_module.content_diversity import (
     load_news_embeddings,
     load_precomputed_embeddings,
     _ild,
 )
+from diversity_module.content_diversity_normalized import (
+    per_impression_normalized_content_diversity,
+)
+
+# Per-impression sampling budget for the normalized metric's min/max estimate —
+# the same default the diversity stage uses (diversity_module.__main__).
+_NORMALIZED_MAX_COMBINATIONS = 1000
 
 
 # Recommenders to test against the ground-truth baseline, in display order.
@@ -117,6 +137,7 @@ REC_LABELS = {
 METRIC_LABELS = {
     "topic_diversity": "Topic diversity",
     "content_diversity": "Content diversity (ILD)",
+    "content_diversity_normalized": "Normalized content diversity",
 }
 
 
@@ -192,15 +213,17 @@ def _cohen_d_label(dz):
 def paired_comparison(rec_vals, gt_vals):
     """Compare a recommender's per-user values to ground truth on shared users.
 
-    rec_vals, gt_vals : {user_id: value} dicts.
+    rec_vals, gt_vals : {key: value} dicts, keyed by user id (the per-user
+    metrics) or impression id (the per-impression normalized metric). The paired
+    sample is over the keys present in both.
 
     Returns a dict of summary statistics + test results. ``d`` is the paired
     difference (recommender - ground_truth); a positive mean means the
     recommender is MORE diverse than the users' real clicks, negative means LESS.
     """
-    users = sorted(rec_vals.keys() & gt_vals.keys())
-    rec = np.array([rec_vals[u] for u in users], dtype=float)
-    gt = np.array([gt_vals[u] for u in users], dtype=float)
+    keys = sorted(rec_vals.keys() & gt_vals.keys())
+    rec = np.array([rec_vals[k] for k in keys], dtype=float)
+    gt = np.array([gt_vals[k] for k in keys], dtype=float)
     d = rec - gt
     n = len(d)
 
@@ -233,7 +256,7 @@ def paired_comparison(rec_vals, gt_vals):
         shapiro_p, diffs_normal = float("nan"), False
 
     return {
-        "n_users": n,
+        "n": n,
         "mean_recommender": float(rec.mean()),
         "mean_ground_truth": float(gt.mean()),
         "mean_difference": mean_diff,
@@ -408,6 +431,99 @@ def plot_effect_sizes(results, samples, metric, stats_dir):
 
 
 # --------------------------------------------------------------------------- #
+# One metric: pair, correct, print, plot
+# --------------------------------------------------------------------------- #
+def _analyze_and_report(metric, gt_vals, rec_vals_by_rec, dataset, out_dir, stats_dir, all_rows):
+    """Pair each recommender against ground truth on one metric, then report.
+
+    gt_vals         : {key: value} for ground truth.
+    rec_vals_by_rec : {recommender_name: {key: value}} aligned to gt_vals' keys
+                      (key = user id for the per-user metrics, impression id for
+                      the normalized metric).
+    Runs the paired tests, Holm-corrects across recommenders, prints the table,
+    writes the four figures, and appends one row per recommender to all_rows.
+    """
+    print(f"=== {METRIC_LABELS[metric]} ===")
+    gt_mean = float(np.mean(list(gt_vals.values())))
+
+    results, samples = {}, {}
+    for r, rec_vals in rec_vals_by_rec.items():
+        res = paired_comparison(rec_vals, gt_vals)
+        results[r] = res
+        samples[r] = res
+
+    # Holm-Bonferroni correction across recommenders, per test family.
+    recs = list(results)
+    t_adj = holm_bonferroni([results[r]["t_pvalue"] for r in recs])
+    w_adj = holm_bonferroni([results[r]["wilcoxon_pvalue"] for r in recs])
+    for r, ta, wa in zip(recs, t_adj, w_adj):
+        results[r]["t_p_adj"] = ta
+        results[r]["wilcoxon_p_adj"] = wa
+
+    # Console summary.
+    hdr = (f"{'recommender':<12}{'n':>7}{'mean':>9}{'GT':>9}{'d_mean':>10}"
+           f"{'dir':>7}{'t_p_adj':>11}{'wil_p_adj':>11}{'d_z':>8}{'size':>11}{'':>5}")
+    print(hdr)
+    print("-" * len(hdr))
+    for r in recs:
+        s = results[r]
+        print(f"{REC_LABELS[r]:<12}{s['n']:>7}{s['mean_recommender']:>9.4f}"
+              f"{s['mean_ground_truth']:>9.4f}{s['mean_difference']:>+10.4f}"
+              f"{s['direction']:>7}{s['t_p_adj']:>11.2e}{s['wilcoxon_p_adj']:>11.2e}"
+              f"{s['cohen_dz']:>+8.3f}{s['effect_size_label']:>11}"
+              f"{stars(s['wilcoxon_p_adj']):>5}")
+        row = {k: v for k, v in s.items() if not k.startswith("_")}
+        row.update({"dataset": dataset, "metric": metric, "recommender": r})
+        all_rows.append(row)
+    print()
+
+    # Figures for this metric.
+    gt_sample = np.array(list(gt_vals.values()), dtype=float)
+    for fn, args in [
+        (plot_means_vs_ground_truth, (results, samples, metric, gt_mean, stats_dir)),
+        (plot_distributions_box, (samples, gt_sample, metric, stats_dir)),
+        (plot_paired_differences, (samples, metric, stats_dir)),
+        (plot_effect_sizes, (results, samples, metric, stats_dir)),
+    ]:
+        path = fn(*args)
+        print(f"  wrote {os.path.relpath(path, out_dir)}")
+    print()
+
+
+def _normalized_per_impression_scores(dataset, embeddings, recommenders):
+    """Per-impression normalized content diversity for ground truth + recommenders.
+
+    Uses ``build_context`` to get the impressions and each recommender's
+    per-impression picks — the normalized metric cannot be rebuilt from the
+    per-user files. Returns ``(gt_vals, {recommender_name: vals})`` as
+    ``{impr_id: score}`` dicts, restricted to the recommenders that have a
+    prediction on disk. Every call uses the same seed, so a given impression's
+    min/max (the normalisation denominator) is shared across recommenders and
+    cancels in the recommender-vs-ground-truth paired difference.
+    """
+    cfg, ctx, recs = build_context(dataset)
+    by_name = {rec.name: rec for rec in recs}
+
+    def scores_for(rec):
+        return per_impression_normalized_content_diversity(
+            ctx.impressions, rec.recommended_by_impr(ctx), embeddings,
+            max_combinations=_NORMALIZED_MAX_COMBINATIONS, seed=ctx.seed,
+        )
+
+    gt_rec = by_name.get(GROUND_TRUTH)
+    if gt_rec is None or not os.path.exists(gt_rec.raw_path(ctx)):
+        return {}, {}
+    gt_vals = scores_for(gt_rec)
+
+    rec_vals = {}
+    for name in recommenders:
+        rec = by_name.get(name)
+        if rec is not None and os.path.exists(rec.raw_path(ctx)):
+            rec_vals[name] = scores_for(rec)
+    return gt_vals, rec_vals
+
+
+# --------------------------------------------------------------------------- #
 # Driver
 # --------------------------------------------------------------------------- #
 def run(dataset="MIND"):
@@ -458,54 +574,24 @@ def run(dataset="MIND"):
 
     all_rows = []  # flat result table for CSV/JSON
 
+    # Per-user metrics (topic + content ILD): rebuilt from the processed per-user
+    # files and paired by user.
     for metric, extractor in metric_defs:
-        print(f"=== {METRIC_LABELS[metric]} ===")
         gt_vals = extractor(gt_path)
-        gt_mean = float(np.mean(list(gt_vals.values())))
+        rec_vals_by_rec = {r: extractor(_processed_path(out_dir, r)) for r in available}
+        _analyze_and_report(metric, gt_vals, rec_vals_by_rec, dataset, out_dir, stats_dir, all_rows)
 
-        results, samples = {}, {}
-        for r in available:
-            rec_vals = extractor(_processed_path(out_dir, r))
-            res = paired_comparison(rec_vals, gt_vals)
-            results[r] = res
-            samples[r] = res
-
-        # Holm-Bonferroni correction across recommenders, per test family.
-        recs = list(results)
-        t_adj = holm_bonferroni([results[r]["t_pvalue"] for r in recs])
-        w_adj = holm_bonferroni([results[r]["wilcoxon_pvalue"] for r in recs])
-        for r, ta, wa in zip(recs, t_adj, w_adj):
-            results[r]["t_p_adj"] = ta
-            results[r]["wilcoxon_p_adj"] = wa
-
-        # Console summary.
-        hdr = (f"{'recommender':<12}{'n':>7}{'mean':>9}{'GT':>9}{'d_mean':>10}"
-               f"{'dir':>7}{'t_p_adj':>11}{'wil_p_adj':>11}{'d_z':>8}{'size':>11}{'':>5}")
-        print(hdr)
-        print("-" * len(hdr))
-        for r in recs:
-            s = results[r]
-            print(f"{REC_LABELS[r]:<12}{s['n_users']:>7}{s['mean_recommender']:>9.4f}"
-                  f"{s['mean_ground_truth']:>9.4f}{s['mean_difference']:>+10.4f}"
-                  f"{s['direction']:>7}{s['t_p_adj']:>11.2e}{s['wilcoxon_p_adj']:>11.2e}"
-                  f"{s['cohen_dz']:>+8.3f}{s['effect_size_label']:>11}"
-                  f"{stars(s['wilcoxon_p_adj']):>5}")
-            row = {k: v for k, v in s.items() if not k.startswith("_")}
-            row.update({"dataset": dataset, "metric": metric, "recommender": r})
-            all_rows.append(row)
-        print()
-
-        # Figures for this metric.
-        gt_sample = np.array(list(gt_vals.values()), dtype=float)
-        for fn, args in [
-            (plot_means_vs_ground_truth, (results, samples, metric, gt_mean, stats_dir)),
-            (plot_distributions_box, (samples, gt_sample, metric, stats_dir)),
-            (plot_paired_differences, (samples, metric, stats_dir)),
-            (plot_effect_sizes, (results, samples, metric, stats_dir)),
-        ]:
-            path = fn(*args)
-            print(f"  wrote {os.path.relpath(path, out_dir)}")
-        print()
+    # Per-impression metric (normalized content diversity): rebuilt from the
+    # impressions + each recommender's picks and paired by impression. This is the
+    # slow one — per-impression min/max sampling — so it runs last.
+    if news_embeddings is not None:
+        print("(computing normalized content diversity - per-impression, slower...)")
+        gt_norm, rec_norm = _normalized_per_impression_scores(dataset, news_embeddings, available)
+        if gt_norm and rec_norm:
+            _analyze_and_report("content_diversity_normalized", gt_norm, rec_norm,
+                                dataset, out_dir, stats_dir, all_rows)
+        else:
+            print("  no scorable impressions for normalized content diversity; skipping.\n")
 
     # Persist the full table.
     csv_path = os.path.join(stats_dir, "stat_tests.csv")
