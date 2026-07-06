@@ -14,6 +14,14 @@
       "content_diversity_normalized": {
         "value": 0.4377131125684225,
         "calculated_at": null
+      },
+      "content_diversity_abstract": {
+        "value": 0.21291628119321387,
+        "calculated_at": "2026-07-06T13:00:33"
+      },
+      "content_diversity_normalized_abstract": {
+        "value": 0.3170445886228821,
+        "calculated_at": "2026-07-06T17:00:09"
       }
     }
   },
@@ -32,6 +40,14 @@
       "content_diversity_normalized": {
         "value": 0.3693426709908659,
         "calculated_at": null
+      },
+      "content_diversity_abstract": {
+        "value": 0.2214980248860786,
+        "calculated_at": "2026-07-06T13:00:33"
+      },
+      "content_diversity_normalized_abstract": {
+        "value": 0.45799408924233703,
+        "calculated_at": "2026-07-06T17:00:09"
       }
     }
   },
@@ -50,6 +66,14 @@
       "content_diversity_normalized": {
         "value": 0.40084727848781143,
         "calculated_at": null
+      },
+      "content_diversity_abstract": {
+        "value": 0.20232595911207654,
+        "calculated_at": "2026-07-06T13:00:33"
+      },
+      "content_diversity_normalized_abstract": {
+        "value": 0.3264466919354111,
+        "calculated_at": "2026-07-06T17:00:09"
       }
     }
   },
@@ -68,6 +92,14 @@
       "content_diversity_normalized": {
         "value": 0.38842601746790917,
         "calculated_at": null
+      },
+      "content_diversity_abstract": {
+        "value": 0.18333070999269582,
+        "calculated_at": "2026-07-06T13:00:33"
+      },
+      "content_diversity_normalized_abstract": {
+        "value": 0.27892569367790077,
+        "calculated_at": "2026-07-06T17:00:09"
       }
     }
   },
@@ -86,6 +118,14 @@
       "content_diversity_normalized": {
         "value": 0.4019601186212262,
         "calculated_at": null
+      },
+      "content_diversity_abstract": {
+        "value": 0.2217549183235999,
+        "calculated_at": "2026-07-06T13:00:33"
+      },
+      "content_diversity_normalized_abstract": {
+        "value": 0.33546564460861644,
+        "calculated_at": "2026-07-06T17:00:09"
       }
     }
   },
@@ -100,6 +140,14 @@
       "content_diversity": {
         "value": 0.3035943419904102,
         "calculated_at": "2026-06-28T06:45:51"
+      },
+      "content_diversity_abstract": {
+        "value": 0.20174988754097806,
+        "calculated_at": "2026-07-06T13:00:33"
+      },
+      "content_diversity_normalized_abstract": {
+        "value": 0.3289502371136391,
+        "calculated_at": "2026-07-06T17:00:09"
       }
     }
   }
