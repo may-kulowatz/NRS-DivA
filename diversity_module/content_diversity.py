@@ -23,12 +23,15 @@ def _word_tokenize(text):
     return _TOKEN_PATTERN.findall(text.lower()) if isinstance(text, str) else []
 
 
-def load_news_embeddings(news_file, embedding_file, word_dict_file):
+def load_news_embeddings(news_file, embedding_file, word_dict_file, text_col=3):
     """Build a {news_id: embedding vector} mapping.
 
-    Each news article is represented by the mean of the word embeddings of
-    the words in its title (content-based representation). News whose title
-    contains no known word are skipped, since they have no content vector.
+    Each news article is represented by the mean of the word embeddings of the
+    words in one of its text fields (content-based representation). ``text_col``
+    selects which ``news.tsv`` column supplies that text: the default ``3`` is
+    the title (the historical behaviour); ``4`` is the abstract. News whose
+    chosen field contains no known word are skipped, since they have no content
+    vector.
     """
     word_embeddings = np.load(embedding_file)
     with open(word_dict_file, "rb") as f:
@@ -38,10 +41,10 @@ def load_news_embeddings(news_file, embedding_file, word_dict_file):
     with open(news_file, encoding="utf-8") as f:
         for line in f:
             cols = line.rstrip("\n").split("\t")
-            if len(cols) < 4:
+            if len(cols) <= text_col:
                 continue
-            news_id, title = cols[0], cols[3]
-            indices = [word_dict[w] for w in _word_tokenize(title) if w in word_dict]
+            news_id, text = cols[0], cols[text_col]
+            indices = [word_dict[w] for w in _word_tokenize(text) if w in word_dict]
             if not indices:
                 continue
             news_embeddings[news_id] = word_embeddings[indices].mean(axis=0)
@@ -85,7 +88,7 @@ def _ild(vectors):
     return 1.0 - ils
 
 
-def content_diversity(user_articles_file, news_embeddings):
+def content_diversity(processed_file, news_embeddings):
     """Average intra-list content diversity (ILD) across users.
 
     Mirrors topic_diversity: only users with more than one click count, and
@@ -93,7 +96,7 @@ def content_diversity(user_articles_file, news_embeddings):
     fewer than two embeddable articles are skipped.
     """
     per_user = []
-    for _, (ids, _) in _parse_user_articles(user_articles_file).items():
+    for _, (ids, _) in _parse_user_articles(processed_file).items():
         if len(ids) <= 1:
             continue
         vectors = [news_embeddings[n] for n in ids if n in news_embeddings]
