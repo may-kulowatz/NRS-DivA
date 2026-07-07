@@ -33,16 +33,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import DATASETS, resolve_dataset
 from recommender_module.base import build_context
-from scores import (
-    MetricUnavailable,
-    _compute_scores,
-    _stale,
+from run_manifest import (
     load_manifest,
     save_manifest,
     metric_value,
     record_metric,
     record_stage_times,
 )
+from diversity_module.compute import MetricUnavailable, _compute_scores, _stale
 from diversity_module.topic_diversity import topic_diversity
 from diversity_module.content_diversity import (
     content_diversity,

@@ -31,11 +31,21 @@ PRIMARY_GREEN = "#2e7d32"
 # config and path helpers, plus the score-cache reader, but never the compute or
 # write helpers.
 from config import DATASETS, input_dir, output_dir
-from scores import _file_sig, load_manifest, metric_value
+from run_manifest import load_manifest, metric_value
 from recommender_module.common.io import processed_filename
 from diversity_module.topic_diversity import _parse_user_articles
 
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _file_sig(path):
+    """Cheap change-signature for a file: modification time + size.
+
+    Keys the dashboard's in-memory parse of the (large) user-article files, so a
+    changed file invalidates that parse.
+    """
+    st = os.stat(path)
+    return f"{st.st_mtime_ns}-{st.st_size}"
 
 
 # ---------------------------------------------------------------------------

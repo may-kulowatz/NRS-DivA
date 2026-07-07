@@ -270,8 +270,9 @@ command-line stage; the "pipeline" is just the order you run them in (see the
   list instead of special-casing each one. Adding a recommender is a new class here.
 - `diversity_module/` — stage 2. `python -m diversity_module` computes the
   diversity measures from the processed files and writes them to the run manifest.
-- `scores.py` — run-manifest I/O, score-computation primitives, and file-staleness
-  helpers shared by the scoring stage.
+- `run_manifest.py` — run-manifest I/O: the shared data contract the recommender
+  and diversity stages write and the dashboard reads. The diversity stage's own
+  score-computation and file-staleness primitives live in `diversity_module/compute.py`.
 - `dashboard.py` — the Solara viewer (read-only).
 
 ### Data flow

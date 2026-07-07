@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import DATASETS, resolve_dataset
 from recommender_module.base import build_context
-from scores import load_manifest, save_manifest, record_stage_times
+from run_manifest import load_manifest, save_manifest, record_stage_times
 
 
 def generate(dataset, only=None, skip_expensive=False):

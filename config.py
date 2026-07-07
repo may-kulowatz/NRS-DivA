@@ -3,7 +3,7 @@
 The single place that describes every dataset the tool knows about — its on-disk
 folder, which adapter parses it, where its raw inputs live, and which optional
 steps apply. Kept separate from the run machinery (``recommender_module`` /
-``diversity_module``) and the score I/O (``scores.py``) so that read-only
+``diversity_module``) and the run-manifest I/O (``run_manifest.py``) so that read-only
 consumers (e.g. the dashboard) can import the configuration on its own.
 """
 
@@ -45,6 +45,14 @@ DATASETS = {
             "kind": "word_average",
             "embedding": ("utils", "embedding.npy"),
             "word_dict": ("utils", "word_dict.pkl"),
+        },
+        # Extra word-average content spaces built from a different news.tsv text
+        # column than the primary (title) one, as name -> (column_index, label).
+        # Each adds content_diversity_<name> (+ _normalized_<name>), computed
+        # exactly like the primary title space but averaging that column's word
+        # embeddings, so title- and abstract-based diversity can be compared.
+        "content_text_variants": {
+            "abstract": (4, "abstract"),
         },
         "prepare": mind_prepare,
     },
@@ -109,6 +117,12 @@ DATASETS = {
             "kind": "word_average",
             "embedding": ("utils", "embedding.npy"),
             "word_dict": ("utils", "word_dict.pkl"),
+        },
+        # As for MIND: an abstract-based word-average space alongside the primary
+        # title one (name -> (news.tsv column_index, label)). mind_news shares
+        # MIND's news.tsv layout, so the abstract is column 4 here too.
+        "content_text_variants": {
+            "abstract": (4, "abstract"),
         },
         # Prepares mind_news: ensure_raw_data builds the splits from the sibling
         # MIND data; ensure_utils builds mind_news's own copy of the utils bundle

@@ -206,5 +206,7 @@ flowchart TB
   file" logic (random/popular/model), while `GroundTruthRecommender` overrides the
   file layout. `ModelRecommender` is the only `expensive` one — it lazily imports a
   per-dataset TensorFlow training script from `config.model_trainers`.
-- **`scores.py`** owns the `run_manifest.json` — the one shared data contract
-  between the generate stage, the score stage, and the read-only **dashboard**.
+- **`run_manifest.py`** owns the `run_manifest.json` — the one shared data contract
+  between the generate stage, the score stage, and the read-only **dashboard**. The
+  score-computation primitives it used to also hold now live with their sole user in
+  `diversity_module/compute.py`.

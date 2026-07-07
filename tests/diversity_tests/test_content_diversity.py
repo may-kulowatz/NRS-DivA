@@ -292,3 +292,48 @@ def test_load_news_embeddings_skips_news_with_no_known_words(tmp_path):
         "News whose title has no known words is skipped — "
         "expected only {'N1'}, actual %s", set(embeddings)
     )
+
+
+def _write_news_tsv_ta(tmp_path, rows):
+    # news.tsv with distinct title (col 3) and abstract (col 4) per row
+    p = tmp_path / "news_ta.tsv"
+    lines = ["\t".join([nid, "news", "sub", title, abstract, "url", "[]", "[]"])
+             for nid, title, abstract in rows]
+    p.write_text("\n".join(lines), encoding="utf-8")
+    return str(p)
+
+
+def test_load_news_embeddings_text_col_selects_abstract(tmp_path):
+    # text_col=4 averages the abstract words instead of the title words.
+    emb_file, wd_file = _write_embedding_fixtures(tmp_path)
+    news_file = _write_news_tsv_ta(tmp_path, [
+        ("N1", "Cat", "Dog Fish"),  # title→[1,0] ; abstract→mean([0,1],[2,2])=[1,1.5]
+    ])
+
+    titles = load_news_embeddings(news_file, emb_file, wd_file)                # default col 3
+    abstracts = load_news_embeddings(news_file, emb_file, wd_file, text_col=4)
+
+    assert np.allclose(titles["N1"], [1.0, 0.0])       # default unchanged (title)
+    assert np.allclose(abstracts["N1"], [1.0, 1.5])    # abstract-based vector
+    logger.info(
+        "text_col selects which news.tsv field is averaged — title(col3) N1=%s vs "
+        "abstract(col4) N1=%s", titles["N1"].tolist(), abstracts["N1"].tolist()
+    )
+
+
+def test_load_news_embeddings_text_col_skips_rows_missing_that_column(tmp_path):
+    # A row with no abstract column present is skipped when text_col=4.
+    emb_file, wd_file = _write_embedding_fixtures(tmp_path)
+    p = tmp_path / "news_short.tsv"
+    # N1 has only 4 columns (no abstract at index 4); N2 has an abstract
+    p.write_text("N1\tnews\tsub\tCat\n"
+                 "N2\tnews\tsub\tDog\tFish\turl\t[]\t[]", encoding="utf-8")
+
+    embeddings = load_news_embeddings(str(p), emb_file, wd_file, text_col=4)
+
+    assert set(embeddings) == {"N2"}
+    assert np.allclose(embeddings["N2"], [2.0, 2.0])   # "Fish" → [2,2]
+    logger.info(
+        "Rows without the requested text column are skipped — "
+        "expected only {'N2'}, actual %s", set(embeddings)
+    )
