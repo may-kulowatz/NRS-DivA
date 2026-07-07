@@ -1,6 +1,6 @@
-def _parse_user_articles(user_articles_file):
+def _parse_user_articles(processed_file):
     users = {}
-    with open(user_articles_file, encoding="utf-8") as f:
+    with open(processed_file, encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split()
             user_id   = parts[0]
@@ -10,7 +10,7 @@ def _parse_user_articles(user_articles_file):
     return users
 
 
-def topic_diversity(user_articles_file):
+def topic_diversity(processed_file):
     """Average of (unique topics / total topic assignments) across users with more than one click.
 
     An article may carry several topics. They are stored as a single
@@ -21,7 +21,7 @@ def topic_diversity(user_articles_file):
     user left with no topics after filtering is skipped entirely.
     """
     per_user = []
-    for _, (ids, topics) in _parse_user_articles(user_articles_file).items():
+    for _, (ids, topics) in _parse_user_articles(processed_file).items():
         if len(ids) <= 1:
             continue
         flat = [t for group in topics for t in group.split("|") if t != "none"]
