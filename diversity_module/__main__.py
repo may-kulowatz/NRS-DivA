@@ -2,14 +2,18 @@
 
 Compute one measure on a dataset, or every measure at once:
 
-    python -m diversity_module <dataset> <measure> [<recommender>]   # just that one
-    python -m diversity_module <dataset> --all                        # all of them
+    python -m diversity_module <dataset> <measure>                    # measure, all recs
+    python -m diversity_module <dataset> <measure> <recommender>      # one measure, one rec
+    python -m diversity_module <dataset> --all                        # all measures, all recs
+    python -m diversity_module <dataset> --all <recommender>          # all measures, one rec
 
 ``<measure>`` is one of ``topic_diversity``, ``content_diversity``, or
 ``content_diversity_normalized`` (plus per-embedding-space variants such as
 ``content_diversity_xlmr``); which measures apply depends on the dataset. By
 default a measure is scored across every recommender that has a prediction file;
-pass an optional ``<recommender>`` (e.g. ``random``) to score only that one.
+add a ``<recommender>`` (e.g. ``random``) to score only that one. The measure and
+recommender may be given in either order (``... naml content_diversity_normalized``
+works too) — they're told apart by name.
 
 PRE  : the recommenders have been generated (run ``python -m recommender_module
        <dataset> --all`` first). Recommenders without a prediction file are
@@ -79,20 +83,32 @@ def _content_spaces(cfg, ctx, articles_file):
 
     cd_cfg = cfg["content_diversity"]
 
-    def _load_primary():
-        if cd_cfg["kind"] == "precomputed":
-            return load_precomputed_embeddings(os.path.join(ctx.in_dir, *cd_cfg["vectors"]))
+    def _load_word_average(text_col):
         # word_average: fetch the (gitignored) embeddings/dicts on demand.
         cfg["prepare"].ensure_utils(ctx.in_dir)
         return load_news_embeddings(
             articles_file,
             os.path.join(ctx.in_dir, *cd_cfg["embedding"]),
             os.path.join(ctx.in_dir, *cd_cfg["word_dict"]),
+            text_col=text_col,
         )
+
+    def _load_primary():
+        if cd_cfg["kind"] == "precomputed":
+            return load_precomputed_embeddings(os.path.join(ctx.in_dir, *cd_cfg["vectors"]))
+        return _load_word_average(3)  # column 3 = title (the primary space)
 
     spaces = []
     if cd_cfg is not None:
         spaces.append(("", _make_loader(_load_primary)))
+        # Extra word-average spaces from other text columns (e.g. the abstract),
+        # each built the same way as the primary title space.
+        if cd_cfg["kind"] == "word_average":
+            for name, (text_col, _label) in cfg.get("content_text_variants", {}).items():
+                spaces.append((
+                    f"_{name}",
+                    _make_loader(lambda tc=text_col: _load_word_average(tc)),
+                ))
     for name, (vec_file, vec_col) in cfg.get("content_embeddings", {}).items():
         spaces.append((
             f"_{name}",
@@ -218,14 +234,15 @@ def main(argv=None):
     )
     p.add_argument("dataset",
                    help=f"dataset to score (one of {list(DATASETS)}, any case)")
-    p.add_argument("measure", nargs="?",
-                   help="a single measure to compute, e.g. topic_diversity, "
-                        "content_diversity, content_diversity_normalized (which "
-                        "ones apply depends on the dataset). Omit and use --all to "
-                        "compute them all.")
-    p.add_argument("recommender", nargs="?",
-                   help="score only this recommender's prediction, e.g. random "
-                        "(default: every recommender with a prediction)")
+    # A measure and/or a recommender, in any order. They're disjoint namespaces —
+    # every measure starts with "topic_diversity"/"content_diversity" and no
+    # recommender does — so which token is which is unambiguous regardless of order.
+    p.add_argument("selectors", nargs="*", metavar="measure|recommender",
+                   help="a single measure (e.g. topic_diversity, content_diversity, "
+                        "content_diversity_normalized — which ones apply depends on "
+                        "the dataset) and/or a single recommender (e.g. random, naml), "
+                        "in any order. Omit the measure and use --all for every "
+                        "measure; omit the recommender to score all of them.")
     p.add_argument("--all", action="store_true",
                    help="compute every measure on the dataset — WARNING: this can "
                         "take a while, as it includes the per-impression normalized "
@@ -237,14 +254,26 @@ def main(argv=None):
     except ValueError as exc:
         p.error(str(exc))
 
-    if bool(args.measure) == args.all:
+    # Sort the free-form selectors into (at most) one measure and one recommender.
+    measure = recommender = None
+    for tok in args.selectors:
+        if tok.startswith("topic_diversity") or tok.startswith("content_diversity"):
+            if measure is not None:
+                p.error(f"more than one measure given ({measure!r} and {tok!r})")
+            measure = tok
+        else:
+            if recommender is not None:
+                p.error(f"more than one recommender given ({recommender!r} and {tok!r})")
+            recommender = tok
+
+    if bool(measure) == args.all:
         p.error("specify exactly one of: a measure name, or --all")
 
     if args.all:
         print(f"Computing every diversity measure on '{args.dataset}'. This can "
               f"take a while — it includes the slow per-impression normalized metric.")
-    score(args.dataset, only=None if args.all else args.measure,
-          recommender=args.recommender)
+    score(args.dataset, only=None if args.all else measure,
+          recommender=recommender)
 
 
 if __name__ == "__main__":
