@@ -35,9 +35,9 @@ the sentinel `"none"` marks "no topic". Parsing is done by the private
 
 ## `topic_diversity.py`
 
-### `topic_diversity(user_articles_file)`
+### `topic_diversity(processed_file)`
 Average of `unique topics / total topic assignments` across qualifying users.
-- **Pre:** `user_articles_file` exists and follows the format above. Topics may
+- **Pre:** `processed_file` exists and follows the format above. Topics may
   be `"|"`-grouped; `"none"` marks an untopiced article.
 - **Post:** returns a `float` in `[0.0, 1.0]`.
   - Users with `≤ 1` clicked article are skipped.
@@ -86,17 +86,26 @@ loaders below):
 - **eb-nerd** — `load_precomputed_embeddings`, reading ready-made document
   vectors from `contrastive_vector.parquet`. **Requires `pyarrow`.**
 
-### `load_news_embeddings(news_file, embedding_file, word_dict_file)`
-Builds the `{news_id: vector}` map by averaging a title's word embeddings.
+### `load_news_embeddings(news_file, embedding_file, word_dict_file, text_col=3)`
+Builds the `{news_id: vector}` map by averaging a text field's word embeddings.
 - **Pre:**
-  - `news_file` is a MIND `news.tsv` (id in col 1, title in col 4).
+  - `news_file` is a MIND `news.tsv` (id in col 0, title in col 3, abstract in col 4).
   - `embedding_file` is the `.npy` word-embedding matrix.
   - `word_dict_file` is the pickled `{word: row_index}` dict built with the
     **same** tokenizer used here (Microsoft Recommenders `word_tokenize`), so
     token→embedding lookups line up.
+  - `text_col` selects which `news.tsv` column supplies the text: `3` = title
+    (default, the primary space), `4` = abstract.
 - **Post:** returns `{news_id: np.ndarray}` where each vector is the **mean** of
-  its title words' embeddings. Rows with `< 4` columns and articles whose title
-  has **no known word** are omitted (they have no content vector).
+  the chosen field's words' embeddings. Rows with `<= text_col` columns and
+  articles whose field has **no known word** are omitted (no content vector).
+
+> **Abstract variant.** MIND and mind_news declare an abstract-based space in
+> their config's `content_text_variants` (`{"abstract": (4, "abstract")}`), which
+> the scoring stage picks up automatically as the `content_diversity_abstract`
+> (and `content_diversity_normalized_abstract`) measures — computed exactly like
+> the title space but averaging the abstract column. Titles and abstracts can
+> then be compared directly on the same dataset.
 
 ### `load_precomputed_embeddings(vector_file, id_column="article_id", vector_column="contrastive_vector")`
 Reads one ready-made document embedding per article from a Parquet file (no
@@ -108,8 +117,8 @@ English word embeddings unusable for eb-nerd's Danish titles).
 - **Post:** returns `{str(article_id): np.ndarray(float32)}`. Ids are stringified
   to match the ids used throughout the pipeline.
 
-### `content_diversity(user_articles_file, news_embeddings)`
-- **Pre:** `user_articles_file` follows the shared format; `news_embeddings` is
+### `content_diversity(processed_file, news_embeddings)`
+- **Pre:** `processed_file` follows the shared format; `news_embeddings` is
   a `{article_id: vector}` map from **either** loader. (Pass the same object
   across calls — building it is expensive; the pipeline caches it per run.)
 - **Post:** returns a `float`. For each user: ILD `= 1 - mean pairwise cosine
