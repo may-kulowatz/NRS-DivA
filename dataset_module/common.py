@@ -8,7 +8,7 @@ def default_input_dir(dir_name):
     Resolves ``<project>/data/datasets/<dir_name>`` from this file's location, so
     the per-dataset prepare modules can locate their data when run standalone
     (``python -m dataset_module``) without importing the root ``config`` (which
-    imports ``dataset_module`` and would create a cycle).
+    imports ``dataset_module``).
     """
     project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(project_dir, "data", "datasets", dir_name)

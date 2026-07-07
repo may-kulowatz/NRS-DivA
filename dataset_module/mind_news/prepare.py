@@ -1,30 +1,22 @@
 """Build the ``mind_news`` dataset: a news-only subset of MIND.
 
-The preparation analog of ``mind_news/adapter`` — it *derives* the mind_news
+The preparation analog of ``mind_news/adapter`` — it derives the mind_news
 files the adapter parses. ``mind_news`` mirrors MIND's layout — a
 ``MINDnews_train`` and a ``MINDnews_dev`` folder, each holding ``news.tsv`` +
 ``behaviors.tsv`` — but keeps far less of the data. It is the slice of MIND that
-is purely about the *news* category:
+is purely about the news category:
 
   * Only impressions in which the user actually **clicked at least one article
-    whose category is "news"** are kept.
-  * Among those, only impressions that show **at least two "news" candidates**
-    survive (a single candidate has nothing to be diverse against).
-  * Every non-news article is **stripped from the impression's candidate list and
-    from the user's reading history**, so the only article ids that remain refer
+    whose category is "news"
+  * Among those, only impressions that show at least two "news" candidates
+  * Every non-news article is stripped from the impression's candidate list and
+    from the user's reading history, so the only article ids that remain refer
     to news articles.
   * ``news.tsv`` is reduced to just the news-category rows.
 
 The result is a smaller dataset, in the exact MIND format, that the rest of the
 pipeline can read through the mind_news adapter (see the ``mind_news`` entry in
 ``config.DATASETS``).
-
-The source MIND splits live under ``data/datasets/mind`` (``MINDsmall_train`` /
-``MINDsmall_dev``); the subset is written under ``data/datasets/mind_news``.
-
-Like the other ``dataset_module`` prepare modules it exposes ``ensure_raw_data``
-and ``ensure_utils``; both derive what they need from the sibling ``mind``
-dataset (via ``mind/prepare``), so mind_news ends up fully self-contained.
 """
 
 import os
@@ -35,7 +27,7 @@ from dataset_module.common import default_input_dir
 # The dataset's folder name under data/datasets/
 DIR = "mind_news"
 
-# MIND's parent category we keep; everything else is dropped.
+# MIND's parent category; everything else is dropped.
 NEWS_CATEGORY = "news"
 
 # (source split dir under data/datasets/mind, destination dir under data/datasets/mind_news)
@@ -172,8 +164,7 @@ def ensure_utils(in_dir):
     treated as a fully independent dataset, so it keeps its own copy of the utils
     (word embeddings, dictionaries, model .yaml configs) under ``in_dir/utils``
     rather than reaching into the sibling MIND folder. The bundle is identical
-    to MIND's, so it is copied from there
-    (downloading the MIND utils first if they aren't present).
+    to MIND's, so it is copied from there.
 
     Returns True if a copy happened.
     """

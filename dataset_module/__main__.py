@@ -47,8 +47,7 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     if args.dataset and not args.all:
-        # Accept the registry key ("MIND") or the folder name ("mind"); every
-        # folder name is the lower-cased key, so one lookup handles both.
+        # Accept the registry key ("MIND") or the folder name ("mind")
         prep = _BY_DIR.get(args.dataset.lower())
         if prep is None:
             p.error(f"unknown dataset {args.dataset!r}; choose from {list(_BY_DIR)}")

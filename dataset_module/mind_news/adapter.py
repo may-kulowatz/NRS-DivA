@@ -38,8 +38,7 @@ def load_article_meta(news_file):
     """Read news.tsv into ``{news_id: subcategory}``.
 
     news.tsv columns: news_id, category, subcategory, title, ... The subcategory
-    (column 2) is used as the topic so ``topic_diversity`` measures
-    news-subcategory variety. Missing subcategory is normalized to "none".
+    (column 2) is used as the topic.
     """
     meta = {}
     with open(news_file, encoding="utf-8") as f:
