@@ -78,6 +78,19 @@ for _cfg in DATASETS.values():
         if _name not in _CONTENT_SPACES:
             _CONTENT_SPACES.append(_name)
 
+# Extra word-average content spaces built from a different article text field than
+# the title (e.g. the abstract), discovered from each dataset's `content_text_variants`.
+# Each variant `name` yields the same two dashboard metric ids as an embedding space.
+_TEXT_VARIANT_LABELS = {"abstract": "abstract"}
+_TEXT_VARIANT_DESC = {
+    "abstract": "the article **abstract** (the short summary) instead of the title",
+}
+_TEXT_VARIANTS = []  # ordered union of text-variant names across all datasets
+for _cfg in DATASETS.values():
+    for _name in _cfg.get("content_text_variants", {}):
+        if _name not in _TEXT_VARIANTS:
+            _TEXT_VARIANTS.append(_name)
+
 METRICS = ["topic", "content", "content_normalized"]
 METRIC_LABELS = {
     "topic": "Topic diversity",
@@ -86,6 +99,11 @@ METRIC_LABELS = {
 }
 for _name in _CONTENT_SPACES:
     _lbl = _SPACE_LABELS.get(_name, _name)
+    METRICS += [f"content_{_name}", f"content_normalized_{_name}"]
+    METRIC_LABELS[f"content_{_name}"] = f"Content diversity ({_lbl}, ILD)"
+    METRIC_LABELS[f"content_normalized_{_name}"] = f"Content diversity ({_lbl}, normalized)"
+for _name in _TEXT_VARIANTS:
+    _lbl = _TEXT_VARIANT_LABELS.get(_name, _name)
     METRICS += [f"content_{_name}", f"content_normalized_{_name}"]
     METRIC_LABELS[f"content_{_name}"] = f"Content diversity ({_lbl}, ILD)"
     METRIC_LABELS[f"content_normalized_{_name}"] = f"Content diversity ({_lbl}, normalized)"
@@ -198,6 +216,23 @@ for _name in _CONTENT_SPACES:
         f"computed in {_desc} space. Computed only when the pipeline is run with "
         f"`--normalized`."
     )
+# Text-field variants (e.g. abstract) reuse the same wording, noting which article
+# text represents each article (so title- vs abstract-based diversity can be compared).
+for _name in _TEXT_VARIANTS:
+    _lbl = _TEXT_VARIANT_LABELS.get(_name, _name)
+    _desc = _TEXT_VARIANT_DESC.get(_name, f"the article `{_name}` text")
+    METRIC_TEXT[f"content_{_name}"] = (
+        f"**Content diversity ({_lbl}, ILD)** — the same *intra-list diversity* as "
+        f"*Content diversity (ILD)*, but each article is represented by {_desc}. "
+        f"Comparing the two shows how much the measured diversity depends on which "
+        f"article text is used."
+    )
+    METRIC_TEXT[f"content_normalized_{_name}"] = (
+        f"**Content diversity ({_lbl}, normalized)** — the per-impression normalized "
+        f"content diversity (rescaled against each impression's candidate pool), with "
+        f"each article represented by {_desc}. Computed only when the pipeline is run "
+        f"with `--normalized`."
+    )
 
 INTRO_MD = """
 # NRS-DivA
@@ -262,6 +297,9 @@ _CACHE_KEY = {
 for _name in _CONTENT_SPACES:
     _CACHE_KEY[f"content_{_name}"] = f"content_diversity_{_name}"
     _CACHE_KEY[f"content_normalized_{_name}"] = f"content_diversity_normalized_{_name}"
+for _name in _TEXT_VARIANTS:
+    _CACHE_KEY[f"content_{_name}"] = f"content_diversity_{_name}"
+    _CACHE_KEY[f"content_normalized_{_name}"] = f"content_diversity_normalized_{_name}"
 
 
 def read_score(dataset, recommender, metric):
@@ -302,18 +340,21 @@ def read_score(dataset, recommender, metric):
 def available_metrics(dataset):
     """Diversity metrics that *apply* to a dataset. Topic always applies; the
     default content metrics need a `content_diversity` config, and each extra
-    embedding space in `content_embeddings` adds its own content_<name> pair."""
+    embedding space in `content_embeddings` or text field in
+    `content_text_variants` adds its own content_<name> pair."""
     cfg = DATASETS[dataset]
     metrics = ["topic"]
     if cfg["content_diversity"] is not None:
         metrics += ["content", "content_normalized"]
     for name in cfg.get("content_embeddings", {}):
         metrics += [f"content_{name}", f"content_normalized_{name}"]
+    for name in cfg.get("content_text_variants", {}):
+        metrics += [f"content_{name}", f"content_normalized_{name}"]
     return metrics
 
 
 def _dataset_scores(dataset):
-    """The dataset's run manifest, or {} if none yet (legacy file migrated on read)."""
+    """The dataset's run manifest, or {} if none yet."""
     return load_manifest(output_dir(dataset))
 
 
