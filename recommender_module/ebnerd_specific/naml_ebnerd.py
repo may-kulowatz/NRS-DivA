@@ -1,6 +1,6 @@
 # NAML news recommender for EB-NeRD.
 #
-# Adapted from: https://github.com/recommenders-team/recommenders/
+# Adapted from: https://github.com/jppol-ai/ebnerd-benchmark
 #
 # This is the NAML analogue of `nrms_ebnerd.py` / `lstur_ebnerd.py`: same
 # `run(...)` contract, same data pipeline, and the SAME MIND-format
