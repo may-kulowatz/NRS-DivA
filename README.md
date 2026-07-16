@@ -46,3 +46,11 @@ without writing any recommender logic — see
 - [Components](docs/components.md) — the datasets, recommenders, and diversity scores
 - [Architecture](docs/architecture.md) — modules, data flow, and core types
 - [Add your own recommender](docs/extending.md) — plug in scoring logic or a prediction file
+
+### Module references
+
+Per-module docs, each covering the stage it owns:
+
+- [`dataset_module`](dataset_module/README.md) — stage 0: dataset adapters and preparers
+- [`recommender_module`](recommender_module/README.md) — stage 1: recommenders and shared prediction I/O
+- [`diversity_module`](diversity_module/README.md) — stage 2: the diversity metrics
