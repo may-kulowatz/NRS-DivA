@@ -17,8 +17,8 @@ mind/
   adapter.py         MIND TSV files  -> normalized structures
   prepare.py         fetch MIND's dev split + utils bundle
 ebnerd/
-  adapter.py         eb-nerd Parquet -> normalized structures
-  prepare.py         verify eb-nerd's inputs are present
+  adapter.py         EB-NeRD Parquet -> normalized structures
+  prepare.py         verify EB-NeRD's inputs are present
 mind_news/
   adapter.py         mind_news TSV   -> normalized structures (subcategory as topic)
   prepare.py         build mind_news from the sibling MIND data
@@ -51,7 +51,7 @@ Each preparer is the acquisition analog of the matching adapter and exposes:
   fetching or building whatever is missing; raises if an input is missing and
   cannot be obtained. Returns `True` if work happened, `False` if already present.
   - `mind/prepare` downloads the MIND 'small' dev split.
-  - `ebnerd/prepare` only verifies the inputs are present (eb-nerd has no public
+  - `ebnerd/prepare` only verifies the inputs are present (EB-NeRD has no public
     download URL) and raises with instructions if not.
   - `mind_news/prepare` builds `MINDnews_{train,dev}` from the sibling `mind`
     dataset (fetching MIND's dev split first if missing).
@@ -84,7 +84,7 @@ satisfy this contract:
 
 **Postcondition (invariant for all producers):** `len(candidate_ids) == len(labels)`
 and `labels[i]` corresponds to `candidate_ids[i]`. Article ids are strings in
-every dataset (eb-nerd's integer ids are stringified) so downstream code treats
+every dataset (EB-NeRD's integer ids are stringified) so downstream code treats
 ids uniformly.
 
 ---
@@ -117,13 +117,13 @@ Parses MIND's tab-separated `behaviors.tsv` / `news.tsv`. Inline `Nxxxx-1`
 
 ## `ebnerd/adapter.py`
 
-Parses eb-nerd's Parquet files into the **same** structures the MIND adapter
+Parses EB-NeRD's Parquet files into the **same** structures the MIND adapter
 produces. **Requires `pyarrow`** (read directly via `pyarrow.parquet`, not
 `pandas.read_parquet`, to avoid pandas' pyarrow extension-type re-registration
 error on module re-import).
 
 ### `load_impressions(behaviors_file)`
-- **Pre:** `behaviors_file` is an eb-nerd `behaviors.parquet` with columns
+- **Pre:** `behaviors_file` is an EB-NeRD `behaviors.parquet` with columns
   `impression_id, user_id, impression_time, article_ids_inview,
   article_ids_clicked`.
 - **Post:** returns `list[Impression]` in row order. Candidates come from
@@ -132,7 +132,7 @@ error on module re-import).
   labels as in MIND.)
 
 ### `load_article_meta(articles_file)`
-- **Pre:** `articles_file` is an eb-nerd `articles.parquet` with columns
+- **Pre:** `articles_file` is an EB-NeRD `articles.parquet` with columns
   `article_id, topics` (`topics` is a list of human-readable labels per article).
 - **Post:** returns `{article_id: topics_str}`. `topics_str` joins all
   of an article's topics with `"|"` and replaces intra-label whitespace with
@@ -140,6 +140,6 @@ error on module re-import).
   file stays parseable; `"none"` when the article has no topics.
 
 ### `load_titles(articles_file)`
-- **Pre:** `articles_file` is an eb-nerd `articles.parquet` with columns
+- **Pre:** `articles_file` is an EB-NeRD `articles.parquet` with columns
   `article_id, title`.
 - **Post:** returns `{article_id: title}` with ids stringified.

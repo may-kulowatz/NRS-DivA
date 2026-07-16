@@ -194,7 +194,9 @@ python -m recommender_module.ebnerd_specific.lstur_ebnerd # LSTUR on eb-nerd
 python -m recommender_module.ebnerd_specific.naml_ebnerd  # NAML on eb-nerd
 ```
 
-Dataset statistics table (CSV + JSON):
+Significance of each recommender's diversity vs. the ground truth — a paired
+t-test per metric, with one figure (mean difference ± 95% CI) written to
+`data_processed/<dataset>/statistics/`:
 
 ```bash
 python statistic.py [<dataset>]
