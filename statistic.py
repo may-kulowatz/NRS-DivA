@@ -2,7 +2,7 @@
 
 The run manifest stores a single aggregate diversity number per recommender (e.g.
 NRMS topic diversity = 0.703) next to the ground-truth number (0.804). Eyeballing
-"0.703 < 0.804" tells you NRMS *looks* less diverse than the users' real clicks —
+"0.703 < 0.804" tells you NRMS looks less diverse than the users' real clicks —
 but not whether that gap is **statistically significant** or just sampling noise.
 
 This script answers, per recommender and per diversity metric:
@@ -32,7 +32,7 @@ Metrics (rebuilt with the same definitions the pipeline uses):
                         rescaled to [0, 1] against the min/max ILD achievable from
                         that impression's candidate pool. Rebuilt from the
                         impressions + each recommender's picks and paired by
-                        impression. Slower, but a first-class diversity measure.
+                        impression. Slower.
 
 Both content metrics are computed once per content-embedding space the dataset
 defines (matching the pipeline): the primary space built from article titles,
@@ -195,7 +195,7 @@ def paired_ttest(rec_vals, gt_vals):
 
     The effect size answers "how big is the gap?" separately from "is it
     significant?": with ~50 000 users the t-test flags almost any non-zero gap, so
-    Cohen's d_z = mean(d) / sd(d) is what tells you whether the gap is
+    Cohen's d_z = mean(d) / sd(d) is what tells whether the gap is
     *practically* meaningful (|d_z| < 0.2 negligible, < 0.5 small, < 0.8 medium,
     else large).
     """
