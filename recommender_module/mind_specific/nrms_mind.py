@@ -29,7 +29,8 @@ def run(dataset_dir, train_split, dev_split, prediction_file,
     dev_split       : validation split sub-folder name (e.g. "MINDsmall_dev").
     prediction_file : output path for the "{impr_id} [ranks]" full-rank file.
 
-    Epochs should be 5; left at 2 for quick testing. The dataset's utils/ bundle
+    Epochs default to 2 (the original Microsoft Recommenders repo uses 5). The
+    dataset's utils/ bundle
     (embeddings, dicts, nrms.yaml) must already exist — the pipeline ensures it
     before calling, and the __main__ block ensures it for standalone MIND runs.
     """

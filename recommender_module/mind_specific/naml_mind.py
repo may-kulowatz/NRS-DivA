@@ -42,7 +42,7 @@ def run(dataset_dir, train_split, dev_split, prediction_file,
     dev_split       : validation split sub-folder name (e.g. "MINDsmall_dev").
     prediction_file : output path for the "{impr_id} [ranks]" full-rank file.
 
-    Epochs should be 5; left at 2 for quick testing. NAML reads more of the utils/
+    Epochs default to 2 (the original Microsoft Recommenders repo uses 5). NAML reads more of the utils/
     bundle than NRMS — the "_all" word embeddings/dict plus the vertical and
     sub-vertical category dicts — but the bundle ships them all together, so the
     same ensure_utils that the pipeline runs (and the __main__ block here) suffices.

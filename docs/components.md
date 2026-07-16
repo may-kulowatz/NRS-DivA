@@ -26,14 +26,24 @@ modules fit together see [architecture](architecture.md); for how to run them se
 ## Recommender systems
 
 Each recommender produces a ranked top-k list per user impression
-(`recommender_module/`):
+(`recommender_module/`). The cheap baselines live in `common/`; the neural
+models are per-dataset training scripts under `mind_specific/` (MIND, mind_news)
+and `ebnerd_specific/` (EB-NeRD).
 
-- **Ground truth** (`ground_truth.py`) — the articles users actually clicked,
-  used as the reference baseline.
-- **Random** (`random_rec.py`) — randomly ranks the candidate articles.
-- **Popular** (`popular_rec.py`) — ranks candidates by overall click popularity.
-- **NRMS** (`nrms_MIND.py`) — neural news recommender (Neural News Recommendation
-  with Multi-Head Self-Attention) from Microsoft Recommenders.
+- **Ground truth** (`common/ground_truth.py`) — the articles users actually
+  clicked, used as the reference baseline.
+- **Random** (`common/random_rec.py`) — randomly ranks the candidate articles.
+- **Popular** (`common/popular_rec.py`) — ranks candidates by overall click
+  popularity.
+- **NRMS** (`{mind,ebnerd}_specific/nrms_*.py`) — Neural News Recommendation with
+  Multi-Head Self-Attention, from Microsoft Recommenders.
+- **LSTUR** (`{mind,ebnerd}_specific/lstur_*.py`) — Neural News Recommendation
+  with Long- and Short-term User Representations, from Microsoft Recommenders.
+- **NAML** (`{mind,ebnerd}_specific/naml_*.py`) — Neural News Recommendation with
+  Attentive Multi-View Learning, from Microsoft Recommenders.
+
+The three neural models (`nrms`, `lstur`, `naml`) are available on every dataset;
+the baselines are dataset-agnostic.
 
 ## Diversity scores
 

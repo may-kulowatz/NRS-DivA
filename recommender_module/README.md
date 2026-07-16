@@ -138,8 +138,8 @@ prediction file is missing; running the file directly (`__main__`) trains on MIN
   the MIND-large dict and overflows LSTUR's per-user embedding on MINDsmall.
 - **Post:** trains the model, saves checkpoint weights under
   `dataset_dir/model/`, and writes full-rank predictions to `prediction_file` in
-  `"{impr_id} [ranks]"` format. Epochs are currently set to `2` for testing
-  (intended to be `5`).
+  `"{impr_id} [ranks]"` format. Epochs default to `2` (the original
+  Microsoft Recommenders repo uses `5`).
 
 ---
 
