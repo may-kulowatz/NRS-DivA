@@ -1,99 +1,59 @@
-"""Statistical significance of recommender diversity vs. the ground truth (MIND).
+"""Statistical significance of recommender diversity vs. the ground truth.
 
-WHAT THIS SCRIPT ANSWERS
-------------------------
-The dashboard / run-manifest stores a single aggregate diversity number per
-recommender (e.g. NRMS topic diversity = 0.703) next to the ground-truth number
-(0.804). Eyeballing "0.703 < 0.804" tells you NRMS *looks* less diverse than the
-users' real clicks — but not whether that gap is **statistically significant** or
-just sampling noise. This script answers, for every recommender and every
-diversity metric:
+The run manifest stores a single aggregate diversity number per recommender (e.g.
+NRMS topic diversity = 0.703) next to the ground-truth number (0.804). Eyeballing
+"0.703 < 0.804" tells you NRMS *looks* less diverse than the users' real clicks —
+but not whether that gap is **statistically significant** or just sampling noise.
+
+This script answers, per recommender and per diversity metric:
 
     "Does this recommender's diversity sit significantly ABOVE or BELOW the
-     ground truth, and how large is the effect?"
+     ground truth?"
 
-THE DATA WE TEST ON
--------------------
-Each processed prediction file (``predictions_processed/``) holds ONE LINE PER
-USER, and the SAME 50 000 user IDs appear in every recommender's file and in the
-ground-truth file. That gives us *paired* observations: for user ``u`` we have
-both the diversity of what the recommender served ``u`` and the diversity of
-``u``'s real clicks. Pairing is the whole point — it removes between-user
-variability (some users simply click broader topics than others) and asks the
-sharper question: *for the same user*, does the recommender raise or lower
-diversity relative to that user's own behavior?
+The same user IDs appear in every recommender's processed file and in the
+ground-truth file, so the observations are *paired*: for each user we have both
+the diversity of what the recommender served them and the diversity of their real
+clicks. We test the difference d = recommender - ground_truth with a **paired
+t-test** (scipy.stats.ttest_rel, H0: mean(d) = 0). A positive mean means the
+recommender is more diverse than the users' real clicks; negative means less.
 
-We rebuild the *per-user* diversity values (not the dataset-level average) using
-exactly the same definitions the pipeline uses, so the mean of our per-user
-sample reproduces the manifest's aggregate number:
+Alongside the test we report the paired effect size (Cohen's d_z = mean(d) /
+sd(d)): with ~50 000 users the t-test flags almost any non-zero gap as
+significant, so d_z is what says whether the gap is *practically* big (< 0.2
+negligible, < 0.5 small, < 0.8 medium, else large).
 
-  * topic_diversity   : per user, (# unique topics) / (# topic assignments),
-                        over users with >1 article and >=1 non-"none" topic.
-                        1.0 = every article a different topic; low = repetitive.
+Metrics (rebuilt with the same definitions the pipeline uses):
+  * topic_diversity   : per user, (# unique topics) / (# topic assignments), for
+                        users with >1 article and >=1 non-"none" topic.
   * content_diversity : per user, intra-list diversity (ILD) = 1 - mean pairwise
-                        cosine similarity of the title embeddings of the user's
-                        articles. Needs >=2 embeddable articles.
-
-We ALSO test one PER-IMPRESSION metric, paired by impression rather than by user:
-
+                        cosine similarity of the user's article title embeddings,
+                        for users with >=2 embeddable articles.
   * content_diversity_normalized : per impression, the recommended set's ILD
                         rescaled to [0, 1] against the min/max ILD achievable from
-                        that impression's candidate pool (how well the recommender
-                        exploited the diversity actually available, not how diverse
-                        the pool happened to be). Rebuilt from the impressions +
-                        each recommender's picks (not the per-user files). The
-                        min/max are the same for every recommender on a given
-                        impression, so they cancel in the paired difference — only
-                        the shared denominator is sampling-estimated. Slow.
+                        that impression's candidate pool. Rebuilt from the
+                        impressions + each recommender's picks and paired by
+                        impression. Slower, but a first-class diversity measure.
 
-THE STATISTICS WE COMPUTE  (per recommender x metric)
------------------------------------------------------
-Let d_i = value_recommender(i) - value_ground_truth(i) over the users (or, for the
-normalized metric, the impressions) i present and scorable in BOTH. We summarize
-and test this difference sample d:
+Both content metrics are computed once per content-embedding space the dataset
+defines (matching the pipeline): the primary space built from article titles,
+plus any ``content_text_variants`` — for MIND / mind_news, the abstract. Those
+add ``content_diversity_abstract`` and ``content_diversity_normalized_abstract``,
+built exactly like the title metrics but averaging the abstract's word
+embeddings, so title- and abstract-based diversity can be compared side by side.
 
-  1. Means + mean difference (mean(d)). Its SIGN is the headline: d>0 the
-     recommender is MORE diverse than ground truth, d<0 LESS diverse.
-  2. 95% confidence interval for mean(d) (t-interval). If it excludes 0, the
-     direction is significant at the 5% level.
-  3. Paired t-test  (scipy.stats.ttest_rel): parametric, H0: mean(d)=0. Valid
-     here because n is large (CLT makes the mean's sampling distribution normal
-     regardless of d's shape).
-  4. Wilcoxon signed-rank test (scipy.stats.wilcoxon): non-parametric companion,
-     H0: the differences are symmetric about 0. Reported because per-user
-     diversity is bounded/skewed, not normal; if both tests agree we can trust
-     the conclusion isn't an artefact of the normality assumption.
-  5. Cohen's d_z (paired effect size) = mean(d) / std(d). Significance with
-     50 000 users is almost guaranteed for any non-zero gap, so the effect size
-     tells us whether the gap is *practically* meaningful:
-        |d_z| < 0.2 negligible, <0.5 small, <0.8 medium, else large.
-  6. Shapiro-Wilk normality flag on a subsample of d (purely diagnostic: it
-     justifies leaning on Wilcoxon when the differences aren't normal).
-
-MULTIPLE COMPARISONS
---------------------
-We run many tests (recommenders x metrics), so a raw p<0.05 would over-fire by
-chance. We apply Holm-Bonferroni correction across all tests of a metric family
-and report the adjusted p-values; significance stars use the adjusted values.
-
-OUTPUTS  (written to data_processed/<dataset>/statistics/)
-----------------------------------------------------------
-  * stat_tests.csv / stat_tests.json : the full results table.
-  * fig_means_vs_ground_truth.png    : mean per-user diversity per recommender
-                                       with 95% CI error bars, the ground-truth
-                                       reference line, and significance stars.
-  * fig_distributions_box.png        : per-user distribution (box + jittered
-                                       points) per recommender vs. ground truth.
-  * fig_paired_differences.png       : distribution of d = recommender - GT per
-                                       recommender, with the 0 reference line.
-  * fig_effect_sizes.png             : forest plot of mean(d) with 95% CI.
+Output (per metric, to data_processed/<dataset>/statistics/):
+  * fig_paired_ttest_<metric>.png : mean difference (recommender − GT) with 95% CI
+                                    and a zero reference line, each row annotated
+                                    with Cohen's d_z. A CI that excludes 0 is
+                                    significant at the 5% level. ``<metric>`` gains
+                                    a space suffix for text variants, e.g.
+                                    fig_paired_ttest_content_diversity_abstract.png.
 
 Run:  python statistic.py [DATASET]      (DATASET defaults to "MIND")
 """
 
 import os
 import sys
-import json
 import math
 
 import numpy as np
@@ -139,6 +99,16 @@ METRIC_LABELS = {
     "content_diversity": "Content diversity (ILD)",
     "content_diversity_normalized": "Normalized content diversity",
 }
+
+
+def _metric_label(base_key, space_label, suffix):
+    """Human label for a content metric in a given text space.
+
+    The primary space (empty suffix) keeps the plain label; a text variant such
+    as the abstract appends its label, e.g. "Content diversity (ILD) — abstract".
+    """
+    base = METRIC_LABELS[base_key]
+    return base if not suffix else f"{base} — {space_label}"
 
 
 # --------------------------------------------------------------------------- #
@@ -196,11 +166,13 @@ def per_user_content_diversity(path, news_embeddings):
 
 
 # --------------------------------------------------------------------------- #
-# The statistical comparison of one recommender against ground truth
+# The paired t-test of one recommender against ground truth
 # --------------------------------------------------------------------------- #
 def _cohen_d_label(dz):
     """Conventional plain-language size band for a paired Cohen's d_z."""
     a = abs(dz)
+    if math.isnan(a):
+        return "n/a"
     if a < 0.2:
         return "negligible"
     if a < 0.5:
@@ -210,16 +182,22 @@ def _cohen_d_label(dz):
     return "large"
 
 
-def paired_comparison(rec_vals, gt_vals):
-    """Compare a recommender's per-user values to ground truth on shared users.
+def paired_ttest(rec_vals, gt_vals):
+    """Paired t-test of a recommender's values against ground truth.
 
     rec_vals, gt_vals : {key: value} dicts, keyed by user id (the per-user
     metrics) or impression id (the per-impression normalized metric). The paired
-    sample is over the keys present in both.
+    sample is over the keys present in both. Returns the group means, the mean
+    paired difference d = recommender - ground_truth with its 95% t-interval, the
+    t-test result, and the paired effect size (Cohen's d_z). A positive mean
+    difference means the recommender is MORE diverse than the users' real clicks,
+    negative means LESS.
 
-    Returns a dict of summary statistics + test results. ``d`` is the paired
-    difference (recommender - ground_truth); a positive mean means the
-    recommender is MORE diverse than the users' real clicks, negative means LESS.
+    The effect size answers "how big is the gap?" separately from "is it
+    significant?": with ~50 000 users the t-test flags almost any non-zero gap, so
+    Cohen's d_z = mean(d) / sd(d) is what tells you whether the gap is
+    *practically* meaningful (|d_z| < 0.2 negligible, < 0.5 small, < 0.8 medium,
+    else large).
     """
     keys = sorted(rec_vals.keys() & gt_vals.keys())
     rec = np.array([rec_vals[k] for k in keys], dtype=float)
@@ -230,30 +208,14 @@ def paired_comparison(rec_vals, gt_vals):
     mean_diff = float(d.mean())
     sd_diff = float(d.std(ddof=1)) if n > 1 else float("nan")
     se = sd_diff / math.sqrt(n) if n > 1 else float("nan")
-    # 95% t-interval for the mean difference.
+    # 95% t-interval for the mean difference (used by the figure).
     tcrit = stats.t.ppf(0.975, df=n - 1) if n > 1 else float("nan")
     ci_lo, ci_hi = mean_diff - tcrit * se, mean_diff + tcrit * se
 
-    # Paired parametric test.
     t_stat, t_p = stats.ttest_rel(rec, gt)
 
-    # Non-parametric companion. Wilcoxon errors if every difference is zero;
-    # guard so a degenerate metric doesn't crash the whole run.
-    try:
-        w_stat, w_p = stats.wilcoxon(rec, gt)
-    except ValueError:
-        w_stat, w_p = float("nan"), float("nan")
-
-    # Paired effect size (Cohen's d_z).
+    # Paired effect size (Cohen's d_z): the standardized magnitude of the gap.
     dz = mean_diff / sd_diff if sd_diff and not math.isnan(sd_diff) else float("nan")
-
-    # Normality diagnostic on the differences (Shapiro caps at 5000 samples).
-    if n >= 3:
-        sample = d if n <= 5000 else np.random.default_rng(42).choice(d, 5000, replace=False)
-        _, shapiro_p = stats.shapiro(sample)
-        diffs_normal = bool(shapiro_p > 0.05)
-    else:
-        shapiro_p, diffs_normal = float("nan"), False
 
     return {
         "n": n,
@@ -265,39 +227,13 @@ def paired_comparison(rec_vals, gt_vals):
         "direction": "above" if mean_diff > 0 else "below",
         "t_statistic": float(t_stat),
         "t_pvalue": float(t_p),
-        "wilcoxon_statistic": float(w_stat),
-        "wilcoxon_pvalue": float(w_p),
         "cohen_dz": float(dz),
         "effect_size_label": _cohen_d_label(dz),
-        "shapiro_pvalue": float(shapiro_p),
-        "differences_normal": diffs_normal,
-        # carried for plotting, not serialised to the table
-        "_d": d,
-        "_rec": rec,
-        "_gt": gt,
     }
 
 
-def holm_bonferroni(pvalues):
-    """Holm-Bonferroni step-down adjusted p-values for a list of raw p-values.
-
-    Controls the family-wise error rate without assuming independence. Returns a
-    list aligned with the input order; adjusted values are clipped to <=1 and
-    kept monotonic in the sorted order (the standard Holm enforcement).
-    """
-    m = len(pvalues)
-    order = sorted(range(m), key=lambda i: pvalues[i])
-    adjusted = [0.0] * m
-    running_max = 0.0
-    for rank, idx in enumerate(order):
-        val = (m - rank) * pvalues[idx]
-        running_max = max(running_max, val)
-        adjusted[idx] = min(running_max, 1.0)
-    return adjusted
-
-
 def stars(p):
-    """Significance stars from a (corrected) p-value."""
+    """Significance stars from a p-value."""
     if p is None or math.isnan(p):
         return "n/a"
     if p < 0.001:
@@ -310,198 +246,85 @@ def stars(p):
 
 
 # --------------------------------------------------------------------------- #
-# Plots
+# The single figure
 # --------------------------------------------------------------------------- #
-def plot_means_vs_ground_truth(results, samples, metric, gt_mean, stats_dir):
-    """Bar of each recommender's mean per-user diversity (95% CI error bars),
-    with the ground-truth value as a horizontal reference line and significance
-    stars (Holm-adjusted Wilcoxon p) above each bar."""
+def plot_paired_ttest(results, metric, label, stats_dir):
+    """Forest plot of the mean difference (recommender - ground truth) with its
+    95% CI, and a zero reference line. A CI that excludes 0 is a significant
+    direction; colour marks above (green) / below (red) / n.s. (grey). Each row
+    is annotated with the paired effect size (Cohen's d_z) and its size band, so
+    the plot shows both *whether* and *how big* the gap is."""
     recs = [r for r in RECOMMENDERS if r in results]
-    means = [samples[r]["mean_recommender"] for r in recs]
-    # Half-width of each recommender's own per-user 95% CI (for the error bar).
-    errs = []
-    for r in recs:
-        s = samples[r]
-        vals = s["_rec"]
-        n = len(vals)
-        se = vals.std(ddof=1) / math.sqrt(n)
-        errs.append(stats.t.ppf(0.975, df=n - 1) * se)
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    x = np.arange(len(recs))
-    colors = ["#c0392b" if m < gt_mean else "#27ae60" for m in means]
-    bars = ax.bar(x, means, yerr=errs, capsize=5, color=colors, alpha=0.85,
-                  edgecolor="black", linewidth=0.6)
-    ax.axhline(gt_mean, color="#2c3e50", linestyle="--", linewidth=1.5,
-               label=f"Ground truth = {gt_mean:.3f}")
-
-    top = max(m + e for m, e in zip(means, errs))
-    for xi, r, m, e in zip(x, recs, means, errs):
-        ax.text(xi, m + e + top * 0.01, stars(results[r]["wilcoxon_p_adj"]),
-                ha="center", va="bottom", fontsize=12, fontweight="bold")
-
-    ax.set_xticks(x)
-    ax.set_xticklabels([REC_LABELS[r] for r in recs])
-    ax.set_ylabel(f"Mean per-user {METRIC_LABELS[metric].lower()}")
-    ax.set_title(f"{METRIC_LABELS[metric]} vs. ground truth\n"
-                 "(green = above GT, red = below; stars = Holm-adj. Wilcoxon)")
-    ax.legend()
-    fig.tight_layout()
-    path = os.path.join(stats_dir, f"fig_means_vs_ground_truth_{metric}.png")
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    return path
-
-
-def plot_distributions_box(samples, gt_sample, metric, stats_dir):
-    """Per-user distribution (box plot) for each recommender and ground truth,
-    so the spread/skew behind the means is visible."""
-    recs = [r for r in RECOMMENDERS if r in samples] + [GROUND_TRUTH]
-    data = []
-    for r in recs:
-        data.append(samples[r]["_rec"] if r != GROUND_TRUTH else gt_sample)
-
-    fig, ax = plt.subplots(figsize=(9, 5))
-    bp = ax.boxplot(data, showfliers=False, patch_artist=True,
-                    medianprops=dict(color="black"))
-    palette = plt.cm.tab10(np.linspace(0, 1, len(recs)))
-    for patch, c in zip(bp["boxes"], palette):
-        patch.set_facecolor(c)
-        patch.set_alpha(0.6)
-    ax.set_xticklabels([REC_LABELS[r] for r in recs], rotation=15)
-    ax.set_ylabel(f"Per-user {METRIC_LABELS[metric].lower()}")
-    ax.set_title(f"Per-user {METRIC_LABELS[metric].lower()} distributions")
-    fig.tight_layout()
-    path = os.path.join(stats_dir, f"fig_distributions_box_{metric}.png")
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    return path
-
-
-def plot_paired_differences(samples, metric, stats_dir):
-    """Distribution of the paired difference d = recommender - ground_truth per
-    recommender (violin), with the d=0 line. Mass left of 0 = below GT."""
-    recs = [r for r in RECOMMENDERS if r in samples]
-    data = [samples[r]["_d"] for r in recs]
-
-    fig, ax = plt.subplots(figsize=(9, 5))
-    parts = ax.violinplot(data, showmeans=True, showextrema=False)
-    for pc, c in zip(parts["bodies"], plt.cm.tab10(np.linspace(0, 1, len(recs)))):
-        pc.set_facecolor(c)
-        pc.set_alpha(0.6)
-    ax.axhline(0, color="#2c3e50", linestyle="--", linewidth=1.5,
-               label="no difference (d = 0)")
-    ax.set_xticks(np.arange(1, len(recs) + 1))
-    ax.set_xticklabels([REC_LABELS[r] for r in recs])
-    ax.set_ylabel(f"Per-user difference  (recommender − ground truth)")
-    ax.set_title(f"Paired differences in {METRIC_LABELS[metric].lower()}\n"
-                 "(below the dashed line = less diverse than real clicks)")
-    ax.legend()
-    fig.tight_layout()
-    path = os.path.join(stats_dir, f"fig_paired_differences_{metric}.png")
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    return path
-
-
-def plot_effect_sizes(results, samples, metric, stats_dir):
-    """Forest plot: mean difference (recommender - GT) with its 95% CI per
-    recommender. CIs crossing 0 = no significant direction."""
-    recs = [r for r in RECOMMENDERS if r in results]
-    means = [samples[r]["mean_difference"] for r in recs]
-    los = [samples[r]["ci95_low"] for r in recs]
-    his = [samples[r]["ci95_high"] for r in recs]
+    means = [results[r]["mean_difference"] for r in recs]
+    los = [results[r]["ci95_low"] for r in recs]
+    his = [results[r]["ci95_high"] for r in recs]
     y = np.arange(len(recs))
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    for yi, m, lo, hi in zip(y, means, los, his):
+    xmax = max(his)
+    for yi, r, m, lo, hi in zip(y, recs, means, los, his):
         color = "#c0392b" if hi < 0 else ("#27ae60" if lo > 0 else "#7f8c8d")
         ax.plot([lo, hi], [yi, yi], color=color, linewidth=2)
         ax.plot(m, yi, "o", color=color, markersize=7)
-    ax.axvline(0, color="#2c3e50", linestyle="--", linewidth=1.5)
+        s = results[r]
+        ax.annotate(f"$d_z$ = {s['cohen_dz']:+.3f} ({s['effect_size_label']})",
+                    xy=(hi, yi), xytext=(6, 0), textcoords="offset points",
+                    va="center", fontsize=8, color=color)
+    ax.axvline(0, color="#2c3e50", linestyle="--", linewidth=1.5,
+               label="no difference (d = 0)")
+    # Headroom on the right so the effect-size labels aren't clipped.
+    ax.set_xlim(right=xmax + 0.6 * (xmax - min(los)) + 1e-9)
     ax.set_yticks(y)
     ax.set_yticklabels([REC_LABELS[r] for r in recs])
-    ax.set_xlabel("Mean difference  (recommender − ground truth)  with 95% CI")
-    ax.set_title(f"Effect of each recommender on {METRIC_LABELS[metric].lower()}")
+    ax.set_xlabel("Mean difference  (recommender − ground truth)  ±95% CI")
+    ax.set_title(f"Paired t-test: {label.lower()} vs. ground truth\n"
+                 "(CI excluding 0 = significant; label = Cohen's $d_z$ effect size)")
+    ax.legend()
     fig.tight_layout()
-    path = os.path.join(stats_dir, f"fig_effect_sizes_{metric}.png")
+    path = os.path.join(stats_dir, f"fig_paired_ttest_{metric}.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
 
 
 # --------------------------------------------------------------------------- #
-# One metric: pair, correct, print, plot
+# One metric: pair, test, print, plot
 # --------------------------------------------------------------------------- #
-def _analyze_and_report(metric, gt_vals, rec_vals_by_rec, dataset, out_dir, stats_dir, all_rows):
-    """Pair each recommender against ground truth on one metric, then report.
+def _analyze_and_report(metric, label, gt_vals, rec_vals_by_rec, out_dir, stats_dir):
+    """Run the paired t-test of each recommender against ground truth on one
+    metric, print a short table, and write the one figure."""
+    print(f"=== {label} ===")
+    results = {r: paired_ttest(vals, gt_vals) for r, vals in rec_vals_by_rec.items()}
+    recs = [r for r in RECOMMENDERS if r in results]
 
-    gt_vals         : {key: value} for ground truth.
-    rec_vals_by_rec : {recommender_name: {key: value}} aligned to gt_vals' keys
-                      (key = user id for the per-user metrics, impression id for
-                      the normalized metric).
-    Runs the paired tests, Holm-corrects across recommenders, prints the table,
-    writes the four figures, and appends one row per recommender to all_rows.
-    """
-    print(f"=== {METRIC_LABELS[metric]} ===")
-    gt_mean = float(np.mean(list(gt_vals.values())))
-
-    results, samples = {}, {}
-    for r, rec_vals in rec_vals_by_rec.items():
-        res = paired_comparison(rec_vals, gt_vals)
-        results[r] = res
-        samples[r] = res
-
-    # Holm-Bonferroni correction across recommenders, per test family.
-    recs = list(results)
-    t_adj = holm_bonferroni([results[r]["t_pvalue"] for r in recs])
-    w_adj = holm_bonferroni([results[r]["wilcoxon_pvalue"] for r in recs])
-    for r, ta, wa in zip(recs, t_adj, w_adj):
-        results[r]["t_p_adj"] = ta
-        results[r]["wilcoxon_p_adj"] = wa
-
-    # Console summary.
     hdr = (f"{'recommender':<12}{'n':>7}{'mean':>9}{'GT':>9}{'d_mean':>10}"
-           f"{'dir':>7}{'t_p_adj':>11}{'wil_p_adj':>11}{'d_z':>8}{'size':>11}{'':>5}")
+           f"{'dir':>7}{'t_p':>12}{'':>5}{'d_z':>8}{'size':>12}")
     print(hdr)
     print("-" * len(hdr))
     for r in recs:
         s = results[r]
         print(f"{REC_LABELS[r]:<12}{s['n']:>7}{s['mean_recommender']:>9.4f}"
               f"{s['mean_ground_truth']:>9.4f}{s['mean_difference']:>+10.4f}"
-              f"{s['direction']:>7}{s['t_p_adj']:>11.2e}{s['wilcoxon_p_adj']:>11.2e}"
-              f"{s['cohen_dz']:>+8.3f}{s['effect_size_label']:>11}"
-              f"{stars(s['wilcoxon_p_adj']):>5}")
-        row = {k: v for k, v in s.items() if not k.startswith("_")}
-        row.update({"dataset": dataset, "metric": metric, "recommender": r})
-        all_rows.append(row)
+              f"{s['direction']:>7}{s['t_pvalue']:>12.2e}{stars(s['t_pvalue']):>5}"
+              f"{s['cohen_dz']:>+8.3f}{s['effect_size_label']:>12}")
     print()
 
-    # Figures for this metric.
-    gt_sample = np.array(list(gt_vals.values()), dtype=float)
-    for fn, args in [
-        (plot_means_vs_ground_truth, (results, samples, metric, gt_mean, stats_dir)),
-        (plot_distributions_box, (samples, gt_sample, metric, stats_dir)),
-        (plot_paired_differences, (samples, metric, stats_dir)),
-        (plot_effect_sizes, (results, samples, metric, stats_dir)),
-    ]:
-        path = fn(*args)
-        print(f"  wrote {os.path.relpath(path, out_dir)}")
-    print()
+    path = plot_paired_ttest(results, metric, label, stats_dir)
+    print(f"  wrote {os.path.relpath(path, out_dir)}\n")
 
 
-def _normalized_per_impression_scores(dataset, embeddings, recommenders):
+def _normalized_per_impression_scores(ctx, recs, embeddings, recommenders):
     """Per-impression normalized content diversity for ground truth + recommenders.
 
-    Uses ``build_context`` to get the impressions and each recommender's
-    per-impression picks — the normalized metric cannot be rebuilt from the
-    per-user files. Returns ``(gt_vals, {recommender_name: vals})`` as
-    ``{impr_id: score}`` dicts, restricted to the recommenders that have a
-    prediction on disk. Every call uses the same seed, so a given impression's
-    min/max (the normalisation denominator) is shared across recommenders and
-    cancels in the recommender-vs-ground-truth paired difference.
+    Takes an already-built context (from ``build_context``) so the impressions
+    and per-impression picks are parsed once and reused across every content
+    space — the normalized metric cannot be rebuilt from the per-user files.
+    Returns ``(gt_vals, {recommender_name: vals})`` as ``{impr_id: score}``
+    dicts, restricted to the recommenders that have a prediction on disk. Every
+    call uses the same seed, so a given impression's min/max (the normalisation
+    denominator) is shared across recommenders and cancels in the
+    recommender-vs-ground-truth paired difference.
     """
-    cfg, ctx, recs = build_context(dataset)
     by_name = {rec.name: rec for rec in recs}
 
     def scores_for(rec):
@@ -524,9 +347,66 @@ def _normalized_per_impression_scores(dataset, embeddings, recommenders):
 
 
 # --------------------------------------------------------------------------- #
+# The content-embedding spaces to test (title + any text variants)
+# --------------------------------------------------------------------------- #
+def _content_spaces(cfg, in_dir):
+    """``(suffix, label, lazy_loader)`` for each content space to run stats on.
+
+    Mirrors ``diversity_module.__main__._content_spaces`` so the metric keys and
+    figures line up with the pipeline's manifest: the primary space (empty
+    suffix) plus, for word-average datasets (MIND / mind_news), one space per
+    ``content_text_variants`` entry — e.g. the abstract (news.tsv column 4)
+    alongside the title (column 3). Precomputed datasets (eb-nerd) contribute
+    their primary contrastive space plus one space per ``content_embeddings``
+    entry (xlmr / bert / docvec), each a ready-made article-embedding parquet, so
+    the standard per-recommender forest plots can be produced in any of those
+    spaces (``statistic_for_embeddings.py`` instead compares the spaces
+    side-by-side in one grid). Loaders are lazy so each (large) embedding map is
+    built at most once, only when it is scored.
+    """
+    cd_cfg = cfg.get("content_diversity")
+    if not cd_cfg:
+        return []
+
+    def _load_word_average(text_col):
+        cfg["prepare"].ensure_utils(in_dir)
+        return load_news_embeddings(
+            os.path.join(in_dir, *cfg["articles"]),
+            os.path.join(in_dir, *cd_cfg["embedding"]),
+            os.path.join(in_dir, *cd_cfg["word_dict"]),
+            text_col=text_col,
+        )
+
+    if cd_cfg["kind"] == "word_average":
+        spaces = [("", "title", lambda: _load_word_average(3))]  # column 3 = title
+        for name, (text_col, label) in cfg.get("content_text_variants", {}).items():
+            spaces.append((f"_{name}", label,
+                           lambda tc=text_col: _load_word_average(tc)))
+        return spaces
+    if cd_cfg["kind"] == "precomputed":
+        spaces = [("", "contrastive",
+                   lambda: load_precomputed_embeddings(
+                       os.path.join(in_dir, *cd_cfg["vectors"])))]
+        for name, (vec_file, vec_col) in cfg.get("content_embeddings", {}).items():
+            path = os.path.join(in_dir, vec_file)
+            spaces.append((f"_{name}", name,
+                           lambda p=path, c=vec_col: load_precomputed_embeddings(
+                               p, vector_column=c)))
+        return spaces
+    return []
+
+
+# --------------------------------------------------------------------------- #
 # Driver
 # --------------------------------------------------------------------------- #
-def run(dataset="MIND"):
+def run(dataset="MIND", only_spaces=None):
+    """Run the paired t-tests for ``dataset``.
+
+    only_spaces : if given, an iterable of content-space labels (e.g.
+    ``["abstract"]``) — only those content spaces are scored and topic diversity
+    is skipped, so you can compute just the abstract variants without recomputing
+    the title / topic figures you already have. ``None`` runs everything.
+    """
     try:
         dataset = resolve_dataset(dataset)  # accept MIND / mind / folder name
     except ValueError as exc:
@@ -546,66 +426,65 @@ def run(dataset="MIND"):
         raise SystemExit(f"No ground-truth file at {gt_path}")
     print(f"Dataset {dataset}: testing {available} against ground truth\n")
 
-    # Load article embeddings once for content diversity. Two schemes, matching
-    # the pipeline (diversity_module.__main__._content_spaces):
-    #   * word_average (MIND / mind_news): mean of title word-embeddings.
-    #   * precomputed  (ebnerd): one ready-made document vector per article_id.
-    # The per-user ILD math is identical either way; only the source differs.
-    cd_cfg = cfg.get("content_diversity")
-    news_embeddings = None
-    if cd_cfg and cd_cfg["kind"] == "word_average":
-        cfg["prepare"].ensure_utils(in_dir)
-        news_embeddings = load_news_embeddings(
-            os.path.join(in_dir, *cfg["articles"]),
-            os.path.join(in_dir, *cd_cfg["embedding"]),
-            os.path.join(in_dir, *cd_cfg["word_dict"]),
-        )
-    elif cd_cfg and cd_cfg["kind"] == "precomputed":
-        news_embeddings = load_precomputed_embeddings(
-            os.path.join(in_dir, *cd_cfg["vectors"])
-        )
+    # Topic diversity: per user, no embeddings, paired by user. Skipped when the
+    # caller asked for specific content spaces only.
+    if only_spaces is None:
+        gt_topic = per_user_topic_diversity(gt_path)
+        rec_topic = {r: per_user_topic_diversity(_processed_path(out_dir, r)) for r in available}
+        _analyze_and_report("topic_diversity", METRIC_LABELS["topic_diversity"],
+                            gt_topic, rec_topic, out_dir, stats_dir)
 
-    # (metric_key, per-user extractor) pairs we can compute for this dataset.
-    metric_defs = [("topic_diversity", lambda p: per_user_topic_diversity(p))]
-    if news_embeddings is not None:
-        metric_defs.append(
-            ("content_diversity", lambda p: per_user_content_diversity(p, news_embeddings))
-        )
+    # Content diversity, once per content-embedding space (matching the pipeline:
+    # the primary title space plus any text variants such as the abstract). Each
+    # space yields two metrics — per-user ILD and per-impression normalized ILD —
+    # with the same suffixed keys/figures the pipeline's manifest uses.
+    spaces = _content_spaces(cfg, in_dir)
+    if only_spaces is not None:
+        wanted = set(only_spaces)
+        spaces = [s for s in spaces if s[1] in wanted]
+        missing = wanted - {s[1] for s in _content_spaces(cfg, in_dir)}
+        if missing:
+            raise SystemExit(
+                f"Unknown content space(s) {sorted(missing)} for '{dataset}'. "
+                f"Available: {[s[1] for s in _content_spaces(cfg, in_dir)]}"
+            )
+    if not spaces:
+        return
 
-    all_rows = []  # flat result table for CSV/JSON
+    # The impressions + per-impression picks (for the normalized metric) are the
+    # same across spaces, so build the context once and reuse it.
+    _, ctx, recs = build_context(dataset)
 
-    # Per-user metrics (topic + content ILD): rebuilt from the processed per-user
-    # files and paired by user.
-    for metric, extractor in metric_defs:
-        gt_vals = extractor(gt_path)
-        rec_vals_by_rec = {r: extractor(_processed_path(out_dir, r)) for r in available}
-        _analyze_and_report(metric, gt_vals, rec_vals_by_rec, dataset, out_dir, stats_dir, all_rows)
+    for suffix, space_label, load in spaces:
+        embeddings = load()
 
-    # Per-impression metric (normalized content diversity): rebuilt from the
-    # impressions + each recommender's picks and paired by impression. This is the
-    # slow one — per-impression min/max sampling — so it runs last.
-    if news_embeddings is not None:
-        print("(computing normalized content diversity - per-impression, slower...)")
-        gt_norm, rec_norm = _normalized_per_impression_scores(dataset, news_embeddings, available)
+        # Per-user content diversity (ILD), paired by user.
+        cd_key = f"content_diversity{suffix}"
+        gt_vals = per_user_content_diversity(gt_path, embeddings)
+        rec_vals = {r: per_user_content_diversity(_processed_path(out_dir, r), embeddings)
+                    for r in available}
+        _analyze_and_report(cd_key, _metric_label("content_diversity", space_label, suffix),
+                            gt_vals, rec_vals, out_dir, stats_dir)
+
+        # Per-impression normalized content diversity, paired by impression. This
+        # is the slow one — per-impression min/max sampling.
+        norm_key = f"content_diversity_normalized{suffix}"
+        norm_label = _metric_label("content_diversity_normalized", space_label, suffix)
+        print(f"(computing {norm_label.lower()} - per-impression, slower...)")
+        gt_norm, rec_norm = _normalized_per_impression_scores(ctx, recs, embeddings, available)
         if gt_norm and rec_norm:
-            _analyze_and_report("content_diversity_normalized", gt_norm, rec_norm,
-                                dataset, out_dir, stats_dir, all_rows)
+            _analyze_and_report(norm_key, norm_label, gt_norm, rec_norm, out_dir, stats_dir)
         else:
-            print("  no scorable impressions for normalized content diversity; skipping.\n")
+            print(f"  no scorable impressions for {norm_label.lower()}; skipping.\n")
 
-    # Persist the full table.
-    csv_path = os.path.join(stats_dir, "stat_tests.csv")
-    json_path = os.path.join(stats_dir, "stat_tests.json")
-    if all_rows:
-        columns = list(all_rows[0].keys())
-        with open(csv_path, "w", encoding="utf-8") as f:
-            f.write(",".join(columns) + "\n")
-            for row in all_rows:
-                f.write(",".join(str(row[c]) for c in columns) + "\n")
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(all_rows, f, indent=2)
-        print(f"Wrote results table -> {os.path.relpath(csv_path, out_dir)} (+ .json)")
+        del embeddings  # free before loading the next space
 
 
 if __name__ == "__main__":
-    run(sys.argv[1] if len(sys.argv) > 1 else "MIND")
+    # Usage: python statistic.py [DATASET] [SPACE ...]
+    #   python statistic.py MIND            -> everything (topic + all content spaces)
+    #   python statistic.py MIND abstract   -> only the abstract content space
+    #                                          (per-user + normalized), no topic/title
+    dataset = sys.argv[1] if len(sys.argv) > 1 else "MIND"
+    only_spaces = sys.argv[2:] or None
+    run(dataset, only_spaces=only_spaces)
