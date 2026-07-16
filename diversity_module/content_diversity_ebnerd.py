@@ -1,4 +1,4 @@
-from typing import Iterable, Callable
+from typing import Callable
 
 from sklearn.metrics.pairwise import cosine_distances
 from itertools import combinations, chain

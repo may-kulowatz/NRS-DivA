@@ -17,7 +17,11 @@ from dataset_module.mind.adapter import load_impressions, load_article_meta
 from recommender_module.common.random_rec import random_recommend
 from recommender_module.common.popular_rec import popular_recommend
 from recommender_module.common.ground_truth import extract_ground_truth, save_ground_truth
-from recommender_module.common.io import save_predictions_topk, save_user_article_map
+from recommender_module.common.io import (
+    save_predictions,
+    save_user_article_map,
+    save_user_article_map_from_ranks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +59,8 @@ def generated_files(tmp_path_factory):
     behaviors_file  = str(tmp / "behaviors.tsv")
     news_file       = str(tmp / "news.tsv")
     gt_file         = str(tmp / "ground_truth.txt")
-    random_topk     = str(tmp / "random_topk.txt")
-    popular_topk    = str(tmp / "popular_topk.txt")
+    random_pred     = str(tmp / "prediction_random.txt")
+    popular_pred    = str(tmp / "prediction_popular.txt")
     random_map      = str(tmp / "prediction_processed_random.txt")
     popular_map     = str(tmp / "prediction_processed_popular.txt")
     gt_map          = str(tmp / "processed_ground_truth.txt")
@@ -73,13 +77,13 @@ def generated_files(tmp_path_factory):
 
     # Random
     random_results = random_recommend(impressions, seed=42)
-    save_predictions_topk(random_results, impressions, random_topk)
-    save_user_article_map(random_topk, article_meta, random_map)
+    save_predictions(random_results, random_pred)
+    save_user_article_map_from_ranks(random_pred, impressions, article_meta, random_map)
 
     # Popular
     popular_results = popular_recommend(impressions)
-    save_predictions_topk(popular_results, impressions, popular_topk)
-    save_user_article_map(popular_topk, article_meta, popular_map)
+    save_predictions(popular_results, popular_pred)
+    save_user_article_map_from_ranks(popular_pred, impressions, article_meta, popular_map)
 
     return {
         "random_map":  random_map,

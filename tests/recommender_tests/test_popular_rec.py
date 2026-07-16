@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from dataset_module.mind.adapter import load_impressions, load_article_meta
 from recommender_module.common.popular_rec import popular_recommend
-from recommender_module.common.io import save_predictions_topk, save_user_article_map
+from recommender_module.common.io import save_user_article_map
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +16,6 @@ def write_behaviors(tmp_path, lines):
     p = tmp_path / "behaviors.tsv"
     p.write_text("\n".join(lines), encoding="utf-8")
     return str(p)
-
-
-def parse_topk_line(line):
-    parts = line.strip().split()
-    inner_pos = parts[2][1:-1]
-    inner_ids = parts[3][1:-1]
-    positions = inner_pos.split(",") if inner_pos else []
-    ids = inner_ids.split(",") if inner_ids else []
-    return int(parts[0]), parts[1], positions, ids
 
 
 # ---------------------------------------------------------------------------
@@ -138,67 +129,6 @@ def test_multiple_articles_clicked_ranked_correctly(tmp_path):
         "Article with more historical clicks scores higher than one with fewer clicks — "
         "expected N1 (3 clicks) > N2 (1 click), actual N1=%.0f, N2=%.0f",
         results[4][0], results[4][1]
-    )
-
-
-# ---------------------------------------------------------------------------
-# save_predictions_topk
-# ---------------------------------------------------------------------------
-
-def test_topk_list_length_matches_clicks(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1 N4-0 N5-0",
-        "2\tU2\t11/15/2019 11:00:00\t\tN1-1 N2-0 N3-0 N4-1 N5-0",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    save_predictions_topk(popular_recommend(impressions), impressions, output)
-
-    for line in open(output):
-        _, _, positions, ids = parse_topk_line(line)
-        assert len(positions) == 2
-        assert len(ids) == 2
-    logger.info(
-        "Top-k output contains exactly as many recommendations as there are clicks in the impression — "
-        "expected 2 positions and 2 IDs per impression, actual matches for all impressions"
-    )
-
-
-def test_topk_article_ids_are_valid_candidates(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    save_predictions_topk(popular_recommend(impressions), impressions, output)
-
-    _, _, _, ids = parse_topk_line(open(output).readline())
-    assert all(aid in {"N1", "N2", "N3"} for aid in ids)
-    logger.info(
-        "Article IDs in top-k output are drawn only from the impression's candidate pool — "
-        "expected candidates from {N1, N2, N3}, actual %s",
-        ids
-    )
-
-
-def test_topk_zero_clicks_gives_empty_lists(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-0 N2-0",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    save_predictions_topk(popular_recommend(impressions), impressions, output)
-
-    _, _, positions, ids = parse_topk_line(open(output).readline())
-    assert positions == []
-    assert ids == []
-    logger.info(
-        "Impression with no clicks produces empty recommendation lists — "
-        "expected positions=[], IDs=[], actual positions=%s, IDs=%s",
-        positions, ids
     )
 
 

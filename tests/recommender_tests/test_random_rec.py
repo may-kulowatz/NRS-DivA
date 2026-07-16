@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from dataset_module.mind.adapter import load_impressions, load_article_meta
 from recommender_module.common.random_rec import random_recommend
-from recommender_module.common.io import save_predictions_topk, save_user_article_map
+from recommender_module.common.io import save_user_article_map
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +16,6 @@ def write_behaviors(tmp_path, lines):
     p = tmp_path / "behaviors.tsv"
     p.write_text("\n".join(lines), encoding="utf-8")
     return str(p)
-
-
-def parse_topk_line(line):
-    parts = line.strip().split()
-    inner_pos = parts[2][1:-1]
-    inner_ids = parts[3][1:-1]
-    positions = inner_pos.split(",") if inner_pos else []
-    ids = inner_ids.split(",") if inner_ids else []
-    return int(parts[0]), parts[1], positions, ids
 
 
 # ---------------------------------------------------------------------------
@@ -108,88 +99,6 @@ def test_different_seeds_differ(tmp_path):
         "Different random seeds produce different score arrays — "
         "expected differing scores, actual seed=1: %s, seed=2: %s",
         scores_a, scores_b
-    )
-
-
-# ---------------------------------------------------------------------------
-# save_predictions_topk
-# ---------------------------------------------------------------------------
-
-def test_topk_list_length_matches_clicks(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1 N4-0 N5-0",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    results = random_recommend(impressions, seed=0)
-    save_predictions_topk(results, impressions, output)
-
-    _, _, positions, ids = parse_topk_line(open(output).readline())
-    assert len(positions) == 2
-    assert len(ids) == 2
-    logger.info(
-        "Top-k output contains exactly as many recommendations as there are clicks in the impression — "
-        "expected 2 positions and 2 IDs, actual %d positions and %d IDs",
-        len(positions), len(ids)
-    )
-
-
-def test_topk_article_ids_are_valid_candidates(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-1 N2-0 N3-1 N4-0 N5-0",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    results = random_recommend(impressions, seed=0)
-    save_predictions_topk(results, impressions, output)
-
-    _, _, _, ids = parse_topk_line(open(output).readline())
-    assert all(aid in {"N1", "N2", "N3", "N4", "N5"} for aid in ids)
-    logger.info(
-        "Article IDs in top-k output are drawn only from the impression's candidate pool — "
-        "expected candidates from {N1, N2, N3, N4, N5}, actual %s",
-        ids
-    )
-
-
-def test_topk_positions_within_valid_range(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-0 N2-1 N3-0 N4-1 N5-0",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    results = random_recommend(impressions, seed=0)
-    save_predictions_topk(results, impressions, output)
-
-    _, _, positions, _ = parse_topk_line(open(output).readline())
-    assert all(1 <= int(p) <= 5 for p in positions)
-    logger.info(
-        "Candidate positions in top-k output are valid 1-indexed positions within the impression — "
-        "expected all in range [1, 5], actual %s",
-        positions
-    )
-
-
-def test_topk_zero_clicks_gives_empty_lists(tmp_path):
-    behaviors = write_behaviors(tmp_path, [
-        "1\tU1\t11/15/2019 10:00:00\t\tN1-0 N2-0 N3-0",
-    ])
-    output = str(tmp_path / "out.txt")
-
-    impressions = load_impressions(behaviors)
-    results = random_recommend(impressions, seed=0)
-    save_predictions_topk(results, impressions, output)
-
-    _, _, positions, ids = parse_topk_line(open(output).readline())
-    assert positions == []
-    assert ids == []
-    logger.info(
-        "Impression with no clicks produces empty recommendation lists — "
-        "expected positions=[], IDs=[], actual positions=%s, IDs=%s",
-        positions, ids
     )
 
 

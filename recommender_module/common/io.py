@@ -33,32 +33,6 @@ def save_predictions(results, output_file):
             f.write(f"{impr_id} [" + ",".join(map(str, ranks)) + "]\n")
 
 
-def save_predictions_topk(results, impressions, output_file):
-    """Write the top-K recommended candidates per impression.
-
-    K for each impression is the number of clicks it actually received,
-    so every recommender is asked for exactly as many items as the user clicked
-    — making the outputs directly comparable to the ground truth.
-    """
-    candidate_ids = {imp.impr_id: imp.candidate_ids for imp in impressions}
-    k_by_impr = {imp.impr_id: sum(imp.labels) for imp in impressions}
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        for impr_id, user_id, scores in tqdm(results):
-            k = k_by_impr.get(impr_id, 0)
-            ids = candidate_ids[impr_id]
-            top_k_idx = np.argsort(scores)[::-1][:k]
-            positions = [i + 1 for i in top_k_idx]
-            chosen_ids = [ids[i] for i in top_k_idx]
-            f.write(
-                f"{impr_id} {user_id} ["
-                + ",".join(map(str, positions))
-                + "] ["
-                + ",".join(chosen_ids)
-                + "]\n"
-            )
-
-
 def _write_user_article_map(selections, article_meta, output_file):
     """Aggregate per-impression (user_id, chosen_ids) pairs into the per-user map.
 

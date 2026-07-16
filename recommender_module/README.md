@@ -102,15 +102,6 @@ dataset-specific file format. `numpy` and `tqdm` are required.
   — every prediction file shares this layout with the model recommenders' output,
   and readers take the user from the impressions. Truncates the file.
 
-**`save_predictions_topk(results, impressions, output_file)`**
-- **Pre:** `results` are scored results; `impressions` are the matching
-  `Impression` records (candidate ids come from them, so no dataset file is
-  re-read).
-- **Post:** writes `"{impr_id} {user_id} [positions] [ids]"`. `K` per impression
-  is **the number of clicks it received** (`sum(labels)`), so each recommender is
-  asked for exactly as many items as the user clicked — making outputs directly
-  comparable to ground truth.
-
 **`save_user_article_map(topk_file, article_meta, output_file)`**
 - **Pre:** `topk_file` is a `"{impr_id} {user_id} [pos] [ids]"` file (top-k or
   ground truth); `article_meta` is `{id: topic}` from an adapter.
