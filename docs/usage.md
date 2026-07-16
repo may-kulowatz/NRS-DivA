@@ -73,7 +73,7 @@ by the stage before it. Every command is non-interactive.
 python -m recommender_module MIND random                   # generate random
 python -m diversity_module MIND content_diversity random   # score content diversity for it
 
-# eb-nerd, one model (its files must already be on disk — no public download):
+# EB-NeRD, one model (its files must already be on disk — no public download):
 python -m recommender_module ebnerd nrms                   # train + predict NRMS
 python -m diversity_module ebnerd content_diversity_xlmr nrms   # score one embedding space
 ```
@@ -89,7 +89,7 @@ python -m dataset_module.mind.prepare           # equivalent single-dataset form
 ```
 
 - **PRE:** network access for datasets with a known download source (MIND, and
-  mind_news which is derived from it). eb-nerd has no public URL — its Parquet
+  mind_news which is derived from it). EB-NeRD has no public URL — its Parquet
   files must already be on disk.
 - **POST:** each dataset's raw inputs live under `data/datasets/<dataset>/`. A
   dataset that cannot be prepared is reported and skipped, not fatal. Idempotent:
@@ -170,9 +170,9 @@ same prediction file):
 python -m recommender_module.mind_specific.nrms_mind      # NRMS on MIND
 python -m recommender_module.mind_specific.lstur_mind     # LSTUR on MIND
 python -m recommender_module.mind_specific.naml_mind      # NAML on MIND
-python -m recommender_module.ebnerd_specific.nrms_ebnerd  # NRMS on eb-nerd
-python -m recommender_module.ebnerd_specific.lstur_ebnerd # LSTUR on eb-nerd
-python -m recommender_module.ebnerd_specific.naml_ebnerd  # NAML on eb-nerd
+python -m recommender_module.ebnerd_specific.nrms_ebnerd  # NRMS on EB-NeRD
+python -m recommender_module.ebnerd_specific.lstur_ebnerd # LSTUR on EB-NeRD
+python -m recommender_module.ebnerd_specific.naml_ebnerd  # NAML on EB-NeRD
 ```
 
 Significance of each recommender's diversity vs. the ground truth — a paired

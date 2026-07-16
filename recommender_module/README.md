@@ -12,7 +12,7 @@ common/            dataset-agnostic recommenders + shared writers
   random_rec.py      uniform random scores
   popular_rec.py     prior-click-popularity scores (no future leakage)
   io.py              shared prediction / user-article-map writers
-ebnerd_specific/   eb-nerd NRMS training script (uses the ebrec library)
+ebnerd_specific/   EB-NeRD NRMS training script (uses the ebrec library)
 mind_specific/     NRMS / LSTUR training scripts (parameterized by dataset path)
 ```
 
@@ -32,13 +32,13 @@ paths). `expensive = True` marks the model recommenders (NRMS / LSTUR) whose
 - `ModelRecommender` — trains on demand via a per-dataset training script, looked
   up in `RunContext.model_trainers` (from the dataset config's `"model_trainers"`
   map). The same model name can map to different scripts per dataset — the
-  MIND-format datasets use `mind_specific/`, eb-nerd uses `ebnerd_specific/`. The
+  MIND-format datasets use `mind_specific/`, EB-NeRD uses `ebnerd_specific/`. The
   script is imported lazily, so TensorFlow is only pulled in when a model is
   actually (re)trained.
 - `build_recommenders(model_recs)` — returns a dataset's recommenders in
   scoring/display order: random, popular, its models, then ground truth.
 
-> Raw-input fetching (MIND dev split + utils bundle, eb-nerd presence check)
+> Raw-input fetching (MIND dev split + utils bundle, EB-NeRD presence check)
 > lives in the per-dataset `dataset_module/<name>/prepare.py` modules, not here —
 > see that module.
 
@@ -143,11 +143,11 @@ prediction file is missing; running the file directly (`__main__`) trains on MIN
 
 ---
 
-## `ebnerd_specific/` — eb-nerd-only
+## `ebnerd_specific/` — EB-NeRD-only
 
 ### `nrms_ebnerd.py` (executable training script, WIP)
 
 - **Pre:** the `ebrec` library, `transformers`, `polars`, and TensorFlow are
-  installed; the eb-nerd dataset lives under `~/data/ebnerd`.
-- **Post:** intended to train NRMS on eb-nerd and dump predictions under
+  installed; the EB-NeRD dataset lives under `~/data/ebnerd`.
+- **Post:** intended to train NRMS on EB-NeRD and dump predictions under
   `ebnerd_predictions/`. **Currently incomplete** — sets up paths/hparams only.

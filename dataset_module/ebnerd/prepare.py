@@ -1,4 +1,4 @@
-"""Ensure the eb-nerd dataset's raw inputs exist.
+"""Ensure the EB-NeRD dataset's raw inputs exist.
 
 EB-NeRD has no public direct-download URL, so there is nothing to fetch
 — preparation only *verifies* the inputs are present.
@@ -53,6 +53,6 @@ def ensure_utils(in_dir):
 
 if __name__ == "__main__":
     _in_dir = default_input_dir(DIR)
-    print(f"Checking eb-nerd inputs in {_in_dir} ...")
+    print(f"Checking EB-NeRD inputs in {_in_dir} ...")
     ensure_raw_data(_in_dir)
-    print("  eb-nerd inputs present.")
+    print("  EB-NeRD inputs present.")

@@ -1,4 +1,4 @@
-"""Normalized intra-list content diversity (EBNeRD-style).
+"""Normalized intra-list content diversity (EB-NeRD-style).
 
 The plain intra-list diversity (ILD) of a recommended set says how varied it is,
 but not how varied it *could* have been: a small candidate pool of near-identical

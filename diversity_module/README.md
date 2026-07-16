@@ -9,8 +9,8 @@ than one click**, and return `0.0` when no user qualifies.
 ```
 topic_diversity.py               topic diversity (category-share metric)
 content_diversity.py             content diversity / intra-list diversity (ILD, embedding-based)
-content_diversity_normalized.py  normalized (EBNeRD-style) ILD, against the candidate pool
-content_diversity_ebnerd.py      EBNeRD IntralistDiversity class (used by the normalized metric)
+content_diversity_normalized.py  normalized (EB-NeRD-style) ILD, against the candidate pool
+content_diversity_ebnerd.py      EB-NeRD IntralistDiversity class (used by the normalized metric)
 ```
 
 > **Granularity note:** `topic_diversity` and `content_diversity` read the
@@ -27,7 +27,7 @@ Every metric consumes a whitespace-delimited file with one line per user:
 ```
 
 The two bracketed lists are positionally aligned per article. A topic field
-may itself be a `"|"`-separated group of topics (eb-nerd multi-topic articles);
+may itself be a `"|"`-separated group of topics (EB-NeRD multi-topic articles);
 the sentinel `"none"` marks "no topic". Parsing is done by the private
 `_parse_user_articles`, which `content_diversity.py` reuses.
 
@@ -59,7 +59,7 @@ only the way the `{article_id: vector}` map is built differs per dataset.
 - **MIND** — `load_news_embeddings`, averaging MIND word embeddings
   (`embedding.npy` + `word_dict.pkl`, gitignored; fetched on demand by
   `dataset_module/mind/prepare.py`). **Requires** those utils.
-- **eb-nerd** — `load_precomputed_embeddings`, reading ready-made document
+- **EB-NeRD** — `load_precomputed_embeddings`, reading ready-made document
   vectors from `contrastive_vector.parquet`. **Requires `pyarrow`.**
 
 ### `load_news_embeddings(news_file, embedding_file, word_dict_file, text_col=3)`
@@ -86,9 +86,9 @@ Builds the `{news_id: vector}` map by averaging a text field's word embeddings.
 ### `load_precomputed_embeddings(vector_file, id_column="article_id", vector_column="contrastive_vector")`
 Reads one ready-made document embedding per article from a Parquet file (no
 tokenizer/word dict — sidesteps the language/vocab mismatch that makes MIND's
-English word embeddings unusable for eb-nerd's Danish titles).
+English word embeddings unusable for EB-NeRD's Danish titles).
 - **Pre:** `vector_file` is a Parquet file with an id column and a list-of-float
-  vector column (e.g. eb-nerd's `contrastive_vector.parquet`: `article_id` +
+  vector column (e.g. EB-NeRD's `contrastive_vector.parquet`: `article_id` +
   768-dim `contrastive_vector`). All vectors share one dimension.
 - **Post:** returns `{str(article_id): np.ndarray(float32)}`. Ids are stringified
   to match the ids used throughout the pipeline.
@@ -109,7 +109,7 @@ English word embeddings unusable for eb-nerd's Danish titles).
 
 ## `content_diversity_normalized.py`
 
-Normalized intra-list content diversity (the EBNeRD-leaderboard metric). Plain
+Normalized intra-list content diversity (the EB-NeRD-leaderboard metric). Plain
 ILD says how varied a recommended set is; this says how varied it could have been
 given the candidate pool, by normalizing **per impression**:
 

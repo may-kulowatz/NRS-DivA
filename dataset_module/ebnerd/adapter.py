@@ -1,7 +1,7 @@
 """EB-NeRD (Ekstra Bladet) dataset adapter.
 
 Parses EB-NeRD's parquet files into the same normalized structures the MIND
-adapter produces. All eb-nerd-specific format knowledge lives here:
+adapter produces. All EB-NeRD-specific format knowledge lives here:
 
   * behaviors.parquet — one row per impression. Candidates are in
     `article_ids_inview`; clicked articles are listed explicitly in

@@ -1,4 +1,4 @@
-# NRMS news recommender for eb-nerd — adapted from the EBNeRD benchmark quick-start
+# NRMS news recommender for EB-NeRD — adapted from the EB-NeRD benchmark quick-start
 # (examples/00_quick_start/nrms_ebnerd). Wrapped into `run()` so the pipeline can
 # train it on demand and read its full-rank "{impr_id} [ranks]" prediction file —
 # the SAME format the MIND model trainers write, so the pipeline parses it the same
@@ -44,7 +44,7 @@ HISTORY_SIZE = 20
 
 def run(dataset_dir, train_split, dev_split, prediction_file,
         *, epochs=2, seed=42, batch_size=32):
-    """Train NRMS on eb-nerd and write its full-rank predictions.
+    """Train NRMS on EB-NeRD and write its full-rank predictions.
 
     dataset_dir     : the dataset's input dir (data/datasets/ebnerd) — holds
                       articles.parquet plus the split sub-folders, each with

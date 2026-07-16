@@ -57,7 +57,7 @@ class RunContext:
     dev_split: str = None     # validation split sub-folder (model training)
     # {model_name: (module_path, fn_name)} of the per-dataset training scripts,
     # from the dataset config. Different datasets train the same model name with
-    # different scripts (MIND-format vs eb-nerd), so the trainer is dataset-driven.
+    # different scripts (MIND-format vs EB-NeRD), so the trainer is dataset-driven.
     model_trainers: dict = None
 
 

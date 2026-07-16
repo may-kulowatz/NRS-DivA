@@ -11,7 +11,7 @@ modules fit together see [architecture](architecture.md); for how to run them se
   `behaviors.tsv` (user impressions and clicks), plus pre-built embeddings and
   dictionaries in `utils/`.
   For further information on this dataset, please check out the [documentation](https://learn.microsoft.com/en-us/azure/open-datasets/dataset-microsoft-news?tabs=azureml-opendatasets) and the [github repo](https://github.com/msnews/msnews.github.io/blob/master/assets/doc/introduction.md).
-- **eb-nerd** (`data/datasets/ebnerd/`) — Ekstra Bladet News Recommendation Dataset
+- **EB-NeRD** (`data/datasets/ebnerd/`) — Ekstra Bladet News Recommendation Dataset
   (`articles.parquet`, train/validation splits) used as a second news source.
   Generated outputs for both datasets live under `data/data_processed/<dataset>/`.
   For further information on this dataset, please check out the [documentation](https://recsys.eb.dk/dataset/).

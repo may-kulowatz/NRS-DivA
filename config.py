@@ -61,7 +61,7 @@ DATASETS = {
         "adapter": ebnerd_adapter,
         "behaviors": ("validation", "behaviors.parquet"),
         "articles": ("articles.parquet",),
-        # NRMS / LSTUR, trained on demand by the eb-nerd-specific scripts (which
+        # NRMS / LSTUR, trained on demand by the EB-NeRD-specific scripts (which
         # write the same "{impr_id} [ranks]" prediction file MIND's models do).
         # Topic diversity also uses the multi-valued `topics` field.
         "model_recs": ["nrms", "lstur", "naml"],
@@ -75,7 +75,7 @@ DATASETS = {
             "kind": "precomputed",
             "vectors": ("contrastive_vector.parquet",),
         },
-        # Extra precomputed article-embedding spaces eb-nerd ships, as
+        # Extra precomputed article-embedding spaces EB-NeRD ships, as
         # name -> (parquet_file, vector_column). Each adds its own
         # content_diversity_<name> (+ _normalized_<name>) measures alongside the
         # primary contrastive one above, so diversity can be compared across

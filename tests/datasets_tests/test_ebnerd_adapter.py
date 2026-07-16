@@ -1,4 +1,4 @@
-"""Tests for the eb-nerd dataset adapter.
+"""Tests for the EB-NeRD dataset adapter.
 
 These build tiny synthetic Parquet files (so no large dataset download is
 needed) and check that dataset_module/ebnerd/adapter.py normalizes them into the same

@@ -1,4 +1,4 @@
-"""Tests for normalized (EBNeRD-style) content diversity and the per-impression
+"""Tests for normalized (EB-NeRD-style) content diversity and the per-impression
 recommendation readers that feed it.
 
 The pools here are tiny (C(n, k) well under the sampling budget), so the min/max

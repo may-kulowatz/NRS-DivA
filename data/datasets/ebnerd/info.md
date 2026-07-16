@@ -22,8 +22,8 @@ Notes:
   The `contrastive_vector.parquet` was taken from the folder `Ekstra_Bladet_contrastive_vector`.
 - **What needs what** - `articles.parquet` + `validation/` are the essential
   inputs every run checks (see `dataset_module/ebnerd/prepare.py`). `train/` is
-  required to train the NRMS/LSTUR recommenders (eb-nerd ships no pre-built
+  required to train the NRMS/LSTUR recommenders (EB-NeRD ships no pre-built
   predictions). `contrastive_vector.parquet` is required for content diversity.
-- **Not data** - the `utils/` folder here is vendored *code* (the EBNeRD-benchmark
+- **Not data** - the `utils/` folder here is vendored *code* (the EB-NeRD-benchmark
   helpers) and is tracked in git, so you don't add it. `__MACOSX/` is unzip junk
   and is ignored.

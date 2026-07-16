@@ -1,4 +1,4 @@
-# NAML news recommender for eb-nerd.
+# NAML news recommender for EB-NeRD.
 #
 # This is the NAML analogue of `nrms_ebnerd.py` / `lstur_ebnerd.py`: same
 # `run(...)` contract, same data pipeline, and the SAME MIND-format
@@ -15,18 +15,18 @@
 # So on top of the title tokenisation the other trainers already do, this file
 # also builds body tokens and category/subcategory index mappings.
 #
-# TWO eb-nerd-specific wrinkles the mappings have to handle:
-#   * eb-nerd's `category` ids are sparse (values up to ~2975 for only ~25
+# TWO EB-NeRD-specific wrinkles the mappings have to handle:
+#   * EB-NeRD's `category` ids are sparse (values up to ~2975 for only ~25
 #     distinct categories), so they are REMAPPED to contiguous indices [1..N];
 #     index 0 is reserved for unknown/pad. `hparams_naml.vert_num` /
 #     `subvert_num` are then sized from the data so no id overflows the model's
 #     category-embedding tables.
-#   * eb-nerd's `subcategory` is a LIST per article (multi-valued), while NAML's
+#   * EB-NeRD's `subcategory` is a LIST per article (multi-valued), while NAML's
 #     subvert view expects one id — we take the first subcategory (or unknown if
 #     the list is empty), matching how the title/category are single-valued.
 #
 # THE PREDICTION PATH DIFFERS FROM NRMS/LSTUR ON PURPOSE. Those trainers get
-# per-candidate scores from a dev `DataLoader(eval_mode=True)`, but eb-nerd's
+# per-candidate scores from a dev `DataLoader(eval_mode=True)`, but EB-NeRD's
 # `NAMLDataLoader` explicitly does not implement eval mode. So instead of the
 # dataloader we score with the trained sub-encoders directly: run the news
 # encoder over every article once to get a news vector per article, run the user
@@ -35,7 +35,7 @@
 # scores the scorer would, and we write them in the identical MIND format — the
 # vendored utils are left untouched.
 #
-# As in the sibling trainers, everything from the EBNeRD quick-start that isn't
+# As in the sibling trainers, everything from the EB-NeRD quick-start that isn't
 # needed to *produce the prediction file* (metrics evaluation, TensorBoard,
 # checkpoint / early-stopping callbacks, notebook `.head()` previews) is omitted.
 
@@ -81,7 +81,7 @@ HISTORY_SIZE = 20
 def _build_category_index(values):
     """Map sparse categorical ids to contiguous indices [1..N] (0 = unknown/pad).
 
-    eb-nerd category / subcategory ids are sparse (few distinct values, but large
+    EB-NeRD category / subcategory ids are sparse (few distinct values, but large
     numbers), which would overflow NAML's category-embedding tables. Remapping to
     a dense range keeps the tables small and the ids in bounds.
     """
@@ -153,7 +153,7 @@ def _article_input_lookups(df_articles, title_col, body_col, cat2idx, subcat2idx
 
 def run(dataset_dir, train_split, dev_split, prediction_file,
         *, epochs=2, seed=42, batch_size=32):
-    """Train NAML on eb-nerd and write its full-rank predictions.
+    """Train NAML on EB-NeRD and write its full-rank predictions.
 
     Signature is identical to `nrms_ebnerd.run` / `lstur_ebnerd.run` (and the MIND
     trainers), so the pipeline calls it the same way:

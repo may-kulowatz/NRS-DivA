@@ -1,4 +1,4 @@
-# LSTUR news recommender for eb-nerd.
+# LSTUR news recommender for EB-NeRD.
 #
 # This is the LSTUR analogue of `nrms_ebnerd.py`, the way `lstur_mind.py` mirrors
 # `nrms_mind.py` on the MIND side: same `run(...)` contract, same data pipeline,
@@ -17,7 +17,7 @@
 # Everything else (article tokenisation, training loop, writing the prediction
 # file) is identical to the NRMS trainer.
 #
-# As in `nrms_ebnerd.py`, everything from the EBNeRD quick-start that isn't needed
+# As in `nrms_ebnerd.py`, everything from the EB-NeRD quick-start that isn't needed
 # to *produce the prediction file* (metrics evaluation, TensorBoard, checkpoint /
 # early-stopping callbacks, notebook `.head()` previews) is left out / commented.
 
@@ -67,7 +67,7 @@ HISTORY_SIZE = 20
 
 def run(dataset_dir, train_split, dev_split, prediction_file,
         *, epochs=2, seed=40, batch_size=32):
-    """Train LSTUR on eb-nerd and write its full-rank predictions.
+    """Train LSTUR on EB-NeRD and write its full-rank predictions.
 
     Signature is identical to `nrms_ebnerd.run` (and to the MIND trainers), so the
     pipeline calls it the same way:

@@ -68,10 +68,10 @@ def load_precomputed_embeddings(
     """Build a {article_id: embedding vector} mapping from a Parquet file.
 
     Unlike load_news_embeddings (which averages per-word vectors over a title),
-    this reads one ready-made document embedding per article — e.g. eb-nerd's
+    this reads one ready-made document embedding per article — e.g. EB-NeRD's
     contrastive_vector.parquet, a 768-dim vector per article_id. There is no
     tokenizer or word dictionary involved, so it sidesteps the language/vocab
-    mismatch that makes MIND's English word embeddings unusable for eb-nerd.
+    mismatch that makes MIND's English word embeddings unusable for EB-NeRD.
 
     Article ids are stringified to match the ids used everywhere else in the
     pipeline (the adapters stringify ids, MIND ids are already strings).

@@ -356,7 +356,7 @@ def _content_spaces(cfg, in_dir):
     figures line up with the pipeline's manifest: the primary space (empty
     suffix) plus, for word-average datasets (MIND / mind_news), one space per
     ``content_text_variants`` entry — e.g. the abstract (news.tsv column 4)
-    alongside the title (column 3). Precomputed datasets (eb-nerd) contribute
+    alongside the title (column 3). Precomputed datasets (EB-NeRD) contribute
     their primary contrastive space plus one space per ``content_embeddings``
     entry (xlmr / bert / docvec), each a ready-made article-embedding parquet, so
     the standard per-recommender forest plots can be produced in any of those
