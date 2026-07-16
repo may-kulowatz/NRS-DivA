@@ -1,3 +1,4 @@
+# Adapted from: https://github.com/jppol-ai/ebnerd-benchmark
 # NRMS news recommender for EB-NeRD — adapted from the EB-NeRD benchmark quick-start
 # (examples/00_quick_start/nrms_ebnerd). Wrapped into `run()` so the pipeline can
 # train it on demand and read its full-rank "{impr_id} [ranks]" prediction file —

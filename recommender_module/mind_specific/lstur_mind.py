@@ -1,5 +1,5 @@
 # LSTUR news recommender (from the Microsoft Recommenders quickstart).
-# TODO: link and give props
+# Adapted from: https://github.com/recommenders-team/recommenders/
 #
 # Parameterized by dataset path: `run()` trains LSTUR on any MIND-format dataset
 # (MIND, mind_news, ...), so the pipeline can hand it whichever dataset's paths it
