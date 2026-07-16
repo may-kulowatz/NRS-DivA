@@ -1,6 +1,6 @@
 # LSTUR news recommender for EB-NeRD.
 #
-# Adapted from: https://github.com/recommenders-team/recommenders/
+# Adapted from: https://github.com/jppol-ai/ebnerd-benchmark
 #
 # This is the LSTUR analogue of `nrms_ebnerd.py`, the way `lstur_mind.py` mirrors
 # `nrms_mind.py` on the MIND side: same `run(...)` contract, same data pipeline,
