@@ -17,6 +17,8 @@ are averaged.
 This needs each impression's candidate pool (``Impression.candidate_ids``) and the
 recommender's per-impression choices, so — unlike the per-user ``content_diversity``
 — it operates on impressions, not the aggregated per-user files.
+
+Adapted from https://github.com/jppol-ai/ebnerd-benchmark
 """
 
 import numpy as np

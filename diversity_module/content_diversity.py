@@ -1,4 +1,15 @@
-# TODO: verify!! Also, add license and information about where this came from.
+"""Intra-list content diversity (ILD) from article-title embeddings.
+
+Represents each news article by a content vector — the mean of the word
+embeddings of one of its text fields (title by default) — and scores a user's
+recommended list by the mean pairwise cosine *distance* between those vectors.
+Embeddings are either built from the MIND word_dict / embedding.npy bundle
+(``load_news_embeddings``) or read from a precomputed store
+(``load_precomputed_embeddings``). See ``content_diversity_normalized`` for the
+per-impression normalized variant.
+
+Adapted from https://github.com/recommenders-team/recommenders/
+"""
 
 import re
 import pickle

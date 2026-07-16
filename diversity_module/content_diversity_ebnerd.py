@@ -1,3 +1,12 @@
+"""Intra-list diversity for EB-NeRD, over precomputed article vectors.
+
+Wraps the ``IntralistDiversity`` metric (mean pairwise cosine distance within a
+recommended list) and the candidate-pool min/max range used to normalize it; the
+normalized ``content_diversity_normalized`` builds on this.
+
+Adapted from https://github.com/jppol-ai/ebnerd-benchmark
+"""
+
 from typing import Callable
 
 from sklearn.metrics.pairwise import cosine_distances

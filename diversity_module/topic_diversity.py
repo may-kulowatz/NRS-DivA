@@ -1,3 +1,10 @@
+"""Topic diversity from a recommender's processed per-user file.
+
+Scores how varied a user's recommended topics (categories) are, and provides the
+shared ``_parse_user_articles`` reader that ``content_diversity`` also reuses.
+"""
+
+
 def _parse_user_articles(processed_file):
     users = {}
     with open(processed_file, encoding="utf-8") as f:

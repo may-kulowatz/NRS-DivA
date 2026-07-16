@@ -9,8 +9,10 @@ Right now it ships with two datasets, [MINDsmall](https://learn.microsoft.com/en
 and [EB-NeRDsmall](https://recsys.eb.dk/dataset/), plus `mind_news`, a news-only
 subset of MIND.
 
-> **License note:** MIND data is covered by the
-> [MSR Data License](https://github.com/msnews/MIND/blob/master/MSR%20License_Data.pdf).
+> **License note:** the dataset data is covered by its own licenses:
+>
+> - MIND — [MSR Data License](https://github.com/msnews/MIND/blob/master/MSR%20License_Data.pdf)
+> - EB-NeRD — [General License Terms](https://recsys.eb.dk/assets/pdf/general_license_terms.pdf)
 
 ## Quick start
 
