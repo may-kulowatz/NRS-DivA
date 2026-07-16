@@ -42,6 +42,6 @@ Each recommender produces a ranked top-k list per user impression
 - **Topic diversity** (`topic_diversity.py`) — share of unique topics
   (categories) in a user's list.
 - **Content diversity / ILD** (`content_diversity.py`) — intra-list diversity
-  based on the mean pairwise cosine *distance* between article title embeddings.
+  based on the mean pairwise cosine distance between article title embeddings.
 
 Not all scores are compatible with all recommender systems!
