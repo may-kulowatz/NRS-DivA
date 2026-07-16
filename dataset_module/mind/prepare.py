@@ -6,7 +6,7 @@ this module *acquires* them. It exposes the two functions every
 
   * ``ensure_raw_data(in_dir)`` — fetches the MIND 'small' dev + train splits.
 
-  * ``ensure_utils(in_dir)`` — fetches the *optional* MIND utils bundle (word
+  * ``ensure_utils(in_dir)`` — fetches the optional MIND utils bundle (word
     embeddings, dictionaries, model .yaml configs) that only content diversity
     needs. Called lazily, just before content diversity reads the embeddings, so
     that if it can't be obtained the metric is skipped rather than the whole run

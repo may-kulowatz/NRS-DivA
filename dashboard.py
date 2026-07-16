@@ -55,11 +55,11 @@ DATASET_LABELS = {"MIND": "MIND", "ebnerd": "EB-NeRD", "mind_news": "MIND-News"}
 
 RECOMMENDERS = {
     "MIND": ["random", "popular", "nrms", "lstur", "naml", "ground_truth"],
-    "ebnerd": ["random", "popular", "nrms", "lstur", "ground_truth"],
+    "ebnerd": ["random", "popular", "nrms", "lstur", "naml", "ground_truth"],
     "mind_news": ["random", "popular", "nrms", "lstur", "naml", "ground_truth"],
 }
 # Every recommender across datasets, in display order. A dataset that doesn't
-# support one (e.g. LSTUR / NAML on eb-nerd) shows it greyed-out, not hidden.
+# support one, or hasn't scored it yet, shows it greyed-out, not hidden.
 ALL_RECOMMENDERS = ["random", "popular", "nrms", "lstur", "naml", "ground_truth"]
 REC_LABELS = {
     "random": "Random",
@@ -121,62 +121,38 @@ for _name in _TEXT_VARIANTS:
 DATASET_TEXT = {
     "MIND": (
         "**MIND** (Microsoft News Dataset) — English news from *Microsoft News*. "
-        "Each impression records the candidate articles shown to a user, which "
-        "one(s) they clicked, and the user's reading history. Every article has a "
-        "**category** (e.g. sports, finance, news) and a **subcategory**, plus a "
-        "title and abstract. This app uses the small dev split."
     ),
     "ebnerd": (
         "**EB-NeRD** (Ekstra Bladet News Recommendation Dataset) — Danish news from "
-        "the tabloid *Ekstra Bladet*. Each impression lists the articles in view "
-        "and which were clicked. Articles carry one **category** plus several "
-        "free-text **topics**, along with richer signals (full body text, read "
-        "time, sentiment). It also ships ready-made 768-dimensional contrastive "
-        "document embeddings (`contrastive_vector.parquet`), so content diversity "
-        "is computed for it too, not just topic diversity."
+        "the tabloid *Ekstra Bladet*."
     ),
     "mind_news": (
         "**MIND-News** — a news-only slice of MIND. It keeps only impressions in "
         "which the user clicked at least one article in the **news** category and "
-        "that showed at least two news candidates; every non-news article is "
-        "removed from the candidates and the user's history. It is built from the "
-        "MIND splits by `dataset_module/mind_news/prepare.py`. Because every article is in the "
-        "*news* category, topic diversity here is measured over the news "
-        "**subcategories** instead."
+        "that showed at least two news candidates."
     ),
 }
 
 RECOMMENDER_TEXT = {
     "random": (
         "**Random** — assigns each candidate article a uniform random score. A "
-        "no-personalization baseline; it tends to look highly diverse precisely "
-        "because it ignores relevance."
+        "no-personalization baseline"
     ),
     "popular": (
         "**Popular** — ranks candidates only by how often they were clicked in "
         "*earlier* impressions (global popularity), identically for every user. "
-        "Counts are accumulated in time order, so no future clicks leak into a "
-        "score."
     ),
     "nrms": (
         "**NRMS** — a neural recommender (*Neural News Recommendation with "
-        "Multi-Head Self-Attention*). It builds a user representation from the "
-        "articles in their history and scores each candidate by predicted "
-        "relevance. Available for MIND, MIND-News and EB-NeRD; trained on demand."
+        "Multi-Head Self-Attention*). "
     ),
     "lstur": (
         "**LSTUR** — a neural recommender (*Neural News Recommendation with "
-        "Long- and Short-term User Representations*). It combines a long-term "
-        "user embedding with a short-term interest built from the user's recent "
-        "reading history, then scores each candidate by predicted relevance. "
-        "Available for MIND, MIND-News and EB-NeRD; trained on demand."
+        "Long- and Short-term User Representations*). "
     ),
     "naml": (
         "**NAML** — a neural recommender (*Neural News Recommendation with "
-        "Attentive Multi-View Learning*). It encodes each article from several "
-        "views — title, body, category and sub-category — and scores candidates "
-        "against a user vector built from their reading history. Available for the "
-        "MIND-based datasets (MIND, MIND-News); trained on demand."
+        "Attentive Multi-View Learning*). "
     ),
     "ground_truth": (
         "**Ground truth** — not a recommender but the reference point: the articles "
@@ -190,12 +166,11 @@ METRIC_TEXT = {
         "**Topic diversity** — the share of *distinct* topics among a user's "
         "articles (unique topics ÷ total topic assignments), averaged over users "
         "with more than one click. 1.0 means every article has a different topic; "
-        "low means many share the same one. *Topic* = the article's category "
-        "(MIND) or its set of topic labels (EB-NeRD)."
+        "low means many share the same one. "
     ),
     "content": (
         "**Content diversity (ILD)** — *intra-list diversity*: 1 minus the average "
-        "pairwise cosine similarity of the articles' title embeddings. It measures "
+        "pairwise cosine similarity of the articles' embeddings. It measures "
         "how semantically different the articles are, independent of category "
         "labels. Needs article embeddings."
     ),
@@ -205,8 +180,7 @@ METRIC_TEXT = {
         "diverse selections possible from that impression's candidate pool. 1.0 "
         "means the recommender picked about as varied a set as the candidates "
         "allowed; 0.0 about as uniform as possible. This isolates the recommender's "
-        "choice from how (un)diverse the candidates happened to be. Computed only "
-        "when the pipeline is run with `--normalized`."
+        "choice from how (un)diverse the candidates happened to be. "
     ),
 }
 # Per-embedding-space variants reuse the same wording, noting which embedding space
@@ -223,8 +197,7 @@ for _name in _CONTENT_SPACES:
     METRIC_TEXT[f"content_normalized_{_name}"] = (
         f"**Content diversity ({_lbl}, normalized)** — the per-impression normalized "
         f"content diversity (rescaled against each impression's candidate pool), "
-        f"computed in {_desc} space. Computed only when the pipeline is run with "
-        f"`--normalized`."
+        f"computed in {_desc} space. "
     )
 # Text-field variants (e.g. abstract) reuse the same wording, noting which article
 # text represents each article (so title- vs abstract-based diversity can be compared).
@@ -240,8 +213,7 @@ for _name in _TEXT_VARIANTS:
     METRIC_TEXT[f"content_normalized_{_name}"] = (
         f"**Content diversity ({_lbl}, normalized)** — the per-impression normalized "
         f"content diversity (rescaled against each impression's candidate pool), with "
-        f"each article represented by {_desc}. Computed only when the pipeline is run "
-        f"with `--normalized`."
+        f"each article represented by {_desc}. "
     )
 
 INTRO_MD = """
@@ -252,8 +224,7 @@ recommendations of different recommender systems are, across different
 news datasets.
 
 Use the controls below to pick a **dataset**, a **recommender system** and a
-**diversity score**. The diversity score is computed from the recommender's
-output for the dataset you selected.
+**diversity score** to explore.
 """
 
 
@@ -567,7 +538,7 @@ def interpret_vs_ground_truth(recommender, scores, metric):
     ratio = chosen / gt
     if ratio < 0.75:
         return (
-            f"{label} much lower than ground truth: might lead into echo chambers!",
+            f"{label} lower than ground truth.",
             "warning",
         )
     if ratio < 0.95:
