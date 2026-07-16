@@ -53,32 +53,8 @@ Average of `unique topics / total topic assignments` across qualifying users.
 
 Intra-list diversity based on the mean pairwise cosine **distance** between
 article content embeddings. **Requires `numpy`.** The metric is dataset-agnostic;
-only the way the `{article_id: vector}` map is built differs per dataset (two
-loaders below):
+only the way the `{article_id: vector}` map is built differs per dataset.
 
-### Why cosine distance (and not Euclidean or Jaccard)?
-- **vs. Euclidean.** The vectors are averaged word / document embeddings, where
-  *direction* carries the semantic content and *magnitude* is mostly an artifact
-  (title length, token frequency, per-space norm variation). Cosine compares only
-  orientation, so two same-topic titles aren't judged "far apart" just because one
-  averaged to a longer vector. Cosine similarity is also bounded (≈ `[0, 1]` here),
-  which keeps ILD in a fixed, interpretable range — needed for averaging across
-  users and for the min/max rescaling in `content_diversity_normalized.py` —
-  whereas Euclidean is unbounded and scale-dependent, and tends to *concentrate*
-  (all pairs look equidistant) in high dimensions. It also matches the EBNeRD
-  leaderboard metric, which defaults to `cosine_distances`; using the same metric
-  keeps the two ILD numbers comparable. (If vectors were L2-normalized, cosine and
-  squared Euclidean become monotonically equivalent, so the choice would be moot.)
-- **vs. Jaccard.** Jaccard is a *set* distance — it needs discrete features
-  (bag-of-words, tags, categories), so it can only ask "which items do two articles
-  share." These vectors are **dense continuous** embeddings with no meaningful
-  set interpretation; Jaccard has nothing to intersect. It would also discard the
-  semantic geometry that makes embedding-based ILD worthwhile: two articles using
-  different words for the same topic share few tokens (high Jaccard distance = looks
-  diverse) yet point the same way in embedding space (low cosine distance = correctly
-  judged similar). Set-overlap diversity has its place — that's essentially what the
-  **topic** diversity metric captures over discrete categories — but for content
-  embeddings cosine is the right tool.
 
 - **MIND** — `load_news_embeddings`, averaging MIND word embeddings
   (`embedding.npy` + `word_dict.pkl`, gitignored; fetched on demand by
