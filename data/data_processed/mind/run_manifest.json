@@ -1,7 +1,7 @@
 {
   "random": {
-    "predictions_generated_at": "2026-07-05T13:29:29",
-    "predictions_processed_at": "2026-07-05T13:29:30",
+    "predictions_generated_at": "2026-07-16T09:19:50",
+    "predictions_processed_at": "2026-07-16T09:19:51",
     "metrics": {
       "topic_diversity": {
         "value": 0.8641916929016004,
@@ -26,8 +26,8 @@
     }
   },
   "popular": {
-    "predictions_generated_at": "2026-06-27T19:49:18",
-    "predictions_processed_at": "2026-06-28T06:45:48",
+    "predictions_generated_at": "2026-07-16T09:19:52",
+    "predictions_processed_at": "2026-07-16T09:19:53",
     "metrics": {
       "topic_diversity": {
         "value": 0.7059714988069781,
@@ -104,8 +104,8 @@
     }
   },
   "ground_truth": {
-    "predictions_generated_at": "2026-06-27T19:49:39",
-    "predictions_processed_at": "2026-06-28T06:45:51",
+    "predictions_generated_at": "2026-07-16T09:19:53",
+    "predictions_processed_at": "2026-07-16T09:19:53",
     "metrics": {
       "topic_diversity": {
         "value": 0.8040301438121533,
