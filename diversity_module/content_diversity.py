@@ -8,7 +8,7 @@ Embeddings are either built from the MIND word_dict / embedding.npy bundle
 (``load_precomputed_embeddings``). See ``content_diversity_normalized`` for the
 per-impression normalized variant.
 
-Adapted from https://github.com/recommenders-team/recommenders/
+https://github.com/celinatreuillier/ADF_framework/tree/main
 """
 
 import re
